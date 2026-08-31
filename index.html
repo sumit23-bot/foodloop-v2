@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="FoodLoop connects surplus food with verified NGOs, shelters, and animal feed gaushalas across Delhi-NCR.">
+  <title>FoodLoop | Surplus food, rescued together</title>
+  
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Core Libraries: AI, QR, PDF & Live QR Scanner -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@latest/dist/mobilenet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="#hero"><span>food<span class="brand-accent">loop</span></span><span class="live-dot"></span></a>
+      <button class="menu-toggle" type="button" aria-label="Open navigation"><i class="fa-solid fa-bars"></i></button>
+      <nav class="main-nav">
+        <a href="#hero">Home</a>
+        <a href="#lead-magnets">Get involved</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#rescue-hub">Rescue hub</a>
+        <a href="#contact" id="nav-contact-link">Contact & Notes</a>
+        
+        <!-- Radar Map Link Button -->
+        <a href="map.html" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1.5px solid rgba(56,189,248,0.4); padding: 6px 14px; border-radius: 8px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+          🗺️ Radar Map
+        </a>
+
+        <span id="nav-auth-container">
+          <button type="button" class="button button-small button-outline" onclick="openAuthModal('LOGIN')">
+            <i class="fa-solid fa-user-lock"></i> Sign In / NGO Portal
+          </button>
+        </span>
+
+        <a class="button button-small button-primary" href="#rescue-hub">Post food <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+      <div class="hero-grid container">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-line"></span> Delhi-NCR's live food rescue network</p>
+          <h1>Bridging surplus food to <em>empty plates</em> in minutes.</h1>
+          <p class="hero-text">Good food should never go to waste. FoodLoop connects verified donors with hungry communities and redirects post-window surplus to gaushalas & animal shelters.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#rescue-hub">Rescue food <i class="fa-solid fa-arrow-right"></i></a>
+            <a class="text-link" href="#how-it-works">See how it works <i class="fa-solid fa-play"></i></a>
+          </div>
+          <div class="trust-line">
+            <span class="avatar-stack"><span>R</span><span>M</span><span>A</span></span>
+            <span>Trusted by 35+ verified NGO & Animal Rescue partners</span>
+          </div>
+        </div>
+
+        <div class="impact-panel">
+          <div class="panel-top"><span class="status-label"><span class="pulse"></span> Live impact</span><span>Updated real-time</span></div>
+          <div class="impact-feature"><span class="impact-icon"><i class="fa-solid fa-bowl-food"></i></span><div><strong>1,520+</strong><span>meals saved this month</span></div></div>
+          <div class="impact-row"><div><strong>480<span>kg</span></strong><span>CO2 prevented</span></div><div><strong>35<span>+</span></strong><span>partner NGOs</span></div></div>
+          <div class="chart">
+            <div class="chart-label"><span>Rescue momentum</span><strong>+24.8%</strong></div>
+            <div class="bars"><i style="height:36%"></i><i style="height:52%"></i><i style="height:43%"></i><i style="height:68%"></i><i style="height:61%"></i><i style="height:82%"></i><i style="height:96%"></i></div>
+            <div class="chart-days"><span>Mon</span><span>Today</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-note container"><span>01</span><span>Circular Zero Waste Protocol.</span><span class="note-line"></span></div>
+    </section>
+
+    <!-- Quick Role CTAs -->
+    <section class="section action-section" id="lead-magnets">
+      <div class="container">
+        <div class="section-heading">
+          <div><p class="eyebrow"><span class="eyebrow-line"></span> Make a move</p><h2>There is always a way<br>to <em>join the loop.</em></h2></div>
+          <p>Whether you have surplus meals to give, an NGO feeding shelter, or a gaushala rescuing strays, take action now.</p>
+        </div>
+        <div class="action-grid">
+          <button class="action-card featured" onclick="handleActionCardClick('DONATE')">
+            <span class="card-number">01</span><span class="action-icon"><i class="fa-solid fa-hand-holding-heart"></i></span>
+            <span><strong>Donate surplus food</strong><small>Turn today's extra into someone's meal.</small></span>
+            <i class="fa-solid fa-arrow-up-right-from-square card-arrow"></i>
+          </button>
+          <button class="action-card" onclick="handleActionCardClick('NGO')">
+            <span class="card-number">02</span><span class="action-icon"><i class="fa-solid fa-people-carry-box"></i></span>
+            <span><strong>NGO / Shelter Portal</strong><small>Verify with Darpan ID to claim food.</small></span>
+            <i class="fa-solid fa-arrow-up-right-from-square card-arrow"></i>
+          </button>
+          <button class="action-card" onclick="handleActionCardClick('VOLUNTEER')">
+            <span class="card-number">03</span><span class="action-icon"><i class="fa-solid fa-person-running"></i></span>
+            <span><strong>Volunteer & Deliver</strong><small>Bring your rescue skills to the network.</small></span>
+            <i class="fa-solid fa-arrow-up-right-from-square card-arrow"></i>
+          </button>
+          <button class="action-card" onclick="handleActionCardClick('SHARE')">
+            <span class="card-number">04</span><span class="action-icon"><i class="fa-solid fa-bullhorn"></i></span>
+            <span><strong>Share the initiative</strong><small>Let more people know about the loop.</small></span>
+            <i class="fa-solid fa-arrow-up-right-from-square card-arrow"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="section how-section" id="how-it-works">
+      <div class="container">
+        <div class="section-heading compact">
+          <div><p class="eyebrow"><span class="eyebrow-line"></span> The simple version</p><h2>From extra to impact<br>in <em>three steps.</em></h2></div>
+        </div>
+        <div class="steps">
+          <article class="step"><span class="step-no">01</span><i class="fa-solid fa-camera"></i><h3>Live Camera Capture</h3><p>Donors snap real-time food proof directly via hardware camera.</p></article>
+          <article class="step"><span class="step-no">02</span><i class="fa-solid fa-shield-halved"></i><h3>Verified NGO Claim</h3><p>Only verified NGOs and shelters can unlock and claim.</p></article>
+          <article class="step"><span class="step-no">03</span><i class="fa-solid fa-paw"></i><h3>Zero-Waste Secondary Loop</h3><p>Unclaimed expired food safely routes to gaushalas & stray feeders.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rescue Hub -->
+    <section class="section hub-section" id="rescue-hub">
+      <div class="container">
+        <div class="section-heading hub-header-wrap">
+          <div>
+            <p class="eyebrow"><span class="eyebrow-line"></span> The live board</p>
+            <h2>Rescue hub <span class="live-badge"><span class="pulse"></span> Live</span></h2>
+          </div>
+          
+          <!-- Hub Portal Selector Tabs -->
+          <div style="display: flex; gap: 8px; background: #111827; padding: 4px; border-radius: 10px; border: 1.5px solid #334155;">
+            <button type="button" id="tab-portal-human" onclick="switchRescuePortalTab('HUMAN')" style="background: var(--primary); color: #000; font-weight: 800; font-size: 12px; padding: 6px 14px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              🍲 Human Community Feed
+            </button>
+            <button type="button" id="tab-portal-animal" onclick="switchRescuePortalTab('ANIMAL')" style="background: transparent; color: #cbd5e1; font-weight: 700; font-size: 12px; padding: 6px 14px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              🐾 Animal & Gaushala Loop <span id="diverted-badge-count" style="background: #ef4444; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 9999px;">0</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="hub-grid">
+          <!-- Donor Form Container (Strict Live Hardware Camera Only) -->
+          <div id="donor-form-container">
+            <form class="donor-form" id="donor-form" onsubmit="event.preventDefault(); submitDonationNow();">
+              <div class="form-heading">
+                <span class="form-icon"><i class="fa-solid fa-plus"></i></span>
+                <div><h3>Post a donation</h3><p>Share surplus meals with verified NGOs & shelters.</p></div>
+              </div>
+
+              <!-- Fast-Track Presets -->
+              <div class="preset-wrap">
+                <span class="preset-label">⚡ Fast-Track Presets</span>
+                <div class="preset-btns">
+                  <button type="button" class="preset-btn" onclick="applyPreset('Buffet Surplus: 50 Rice, Dal & Sabzi', 'Vegetarian', '50 servings', 3)">🍛 Buffet (50 pax)</button>
+                  <button type="button" class="preset-btn" onclick="applyPreset('Bakery Surplus: Fresh Bread & Buns', 'Vegetarian', '30 packets', 4)">🍞 Bakery Box (30 pcs)</button>
+                  <button type="button" class="preset-btn" onclick="applyPreset('Event Meal Boxes (Paneer & Roti)', 'Vegetarian', '40 boxes', 2)">🍱 Packed Meals (40 box)</button>
+                  <button type="button" class="preset-btn" onclick="applyPreset('Immediate Surplus (Short Window): 25 Meals', 'Vegetarian', '25 servings', 1)" style="border-color: #fbbf24; color: #fbbf24;">🚨 Short Window (<1h Animal/Bio)</button>
+                </div>
+              </div>
+
+              <!-- Live Camera Proof Section -->
+              <div class="form-group">
+                <div class="label-row">
+                  <label>📸 Live Camera Proof <span style="color: #f87171; font-weight: 800;">* (Live Webcam / Phone Cam Only)</span></label>
+                  <div class="proof-toggle-btns">
+                    <button type="button" onclick="startInAppCamera()" style="background: #10b981; color: #000; font-weight: 800; padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer;">📷 Open Live Camera</button>
+                  </div>
+                </div>
+
+                <div id="camera-box" style="border: 2px dashed #475569; border-radius: 12px; overflow: hidden; position: relative; background: #0b0f19; min-height: 180px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px;">
+                  <div id="start-cam-placeholder">
+                    <span style="color: #cbd5e1; font-size: 13px;">Click <strong>"📷 Open Live Camera"</strong> to activate camera feed. Gallery uploads are disabled to prevent fake posts.</span>
+                  </div>
+                  <video id="cam-video-stream" autoplay playsinline style="width: 100%; max-height: 280px; object-fit: cover; display: none; border-radius: 8px;"></video>
+                  <div id="cam-controls" style="display: none; position: absolute; bottom: 12px; left: 0; right: 0; justify-content: center; gap: 10px; z-index: 10;">
+                    <button type="button" class="cam-btn-capture" onclick="captureLiveSnap()" style="background: #ef4444; color: #fff; font-weight: 800; border: none; padding: 8px 18px; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);">🔴 Capture Live Proof</button>
+                    <button type="button" class="cam-btn-close" onclick="stopInAppCamera()" style="background: #334155; color: #fff; font-weight: 700; border: none; padding: 8px 14px; border-radius: 8px; cursor: pointer;">✕ Close Cam</button>
+                  </div>
+                  <div id="image-preview-container" style="display: none; width: 100%; position: relative;">
+                    <img id="food-image-preview" src="" alt="Proof" style="width: 100%; max-height: 240px; object-fit: cover; border-radius: 8px; display: block;" />
+                    <span id="verification-badge" style="position: absolute; bottom: 8px; left: 8px; background: rgba(16,185,129,0.95); color: #000; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 4px;">✅ Live Proof</span>
+                    <button type="button" class="remove-snap-btn" onclick="retakeSnap()" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.8); color: #fff; border: 1px solid #475569; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">✕ Retake</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Food item</label>
+                <input name="food" id="input-food-title" type="text" placeholder="e.g. 40 vegetable biryanis" required>
+              </div>
+
+              <div class="form-row">
+                <div>
+                  <label>Category</label>
+                  <select name="category" id="input-food-category">
+                    <option>Vegetarian</option>
+                    <option>Non-vegetarian</option>
+                    <option>Vegan</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Quantity</label>
+                  <input name="quantity" id="input-food-qty" type="text" placeholder="e.g. 40 servings" required>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Safe consumption window & Destination Route</label>
+                <select name="window" id="input-food-window" onchange="handleWindowChange(this.value)">
+                  <option value="1">Within 1 hour (🚨 Direct Animal Shelter & Biogas Loop)</option>
+                  <option value="2">Within 2 hours (Fast-track Rescue)</option>
+                  <option value="3" selected>Within 3 hours (Standard NGO Window)</option>
+                  <option value="4">Within 4 hours (Extended Event Food)</option>
+                  <option value="6">By end of day (6h)</option>
+                </select>
+              </div>
+
+              <!-- Address Autocomplete + GPS -->
+              <div class="form-group" id="address-container">
+                <div class="label-row">
+                  <label>Pickup address <small>(Delhi / Noida)</small></label>
+                  <button type="button" id="gps-locate-btn" onclick="locateUserGPS()">🎯 Use Live GPS</button>
+                </div>
+                <input name="address" id="address" type="text" placeholder="Area, landmark, city" required>
+              </div>
+
+              <div class="form-group">
+                <label>Contact phone (10-Digit Mobile Only)</label>
+                <input name="phone" id="donor-phone" type="tel" placeholder="e.g. 9876543210" required>
+              </div>
+              
+              <button class="button button-primary submit-button" type="button" onclick="submitDonationNow()" id="publish-donation-btn">
+                Verify & Publish Donation <i class="fa-solid fa-arrow-right"></i>
+              </button>
+              <p class="form-footnote"><i class="fa-solid fa-shield-heart"></i> FoodLoop Network is verified under India NGO Darpan & Gaushala Rescue Protocol.</p>
+            </form>
+          </div>
+
+          <!-- NGO Logged-In Guidance Card -->
+          <div id="ngo-guidance-card" style="display: none; background: var(--surface-2); border: 1.5px solid #334155; padding: 28px; border-radius: var(--radius-lg); box-shadow: 0 16px 40px rgba(0,0,0,0.5);">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <span style="font-size: 28px;" id="ngo-guide-icon">🏛️</span>
+              <div>
+                <h3 style="font-size: 18px; color: #fff;" id="ngo-guide-title">Verified NGO Rescue Console</h3>
+                <small style="color: #34d399; font-weight: 700;" id="ngo-guide-org">Logged in as Partner</small>
+              </div>
+            </div>
+            <p style="font-size: 13px; color: #cbd5e1; line-height: 1.6; margin-bottom: 18px;">
+              As a verified partner, your role is to <strong>claim and rescue surplus food</strong> from nearby donors before expiration. Food posting is managed directly by donors and banquet halls.
+            </p>
+            <div style="background: #111827; border: 1px solid #334155; padding: 14px; border-radius: 10px; margin-bottom: 18px;">
+              <strong style="font-size: 12px; color: #38bdf8; display: block; margin-bottom: 6px;">📋 Step-by-Step Pickup Guide:</strong>
+              <ol style="font-size: 12px; color: #94a3b8; padding-left: 18px; line-height: 1.6;">
+                <li>Browse the live board on the right & click <strong>Claim Pickup</strong>.</li>
+                <li>Call donor & use <strong>Open Maps</strong> for direct navigation.</li>
+                <li>Scan donor's <strong>Pickup QR</strong> on arrival to unlock 80G tax proof.</li>
+              </ol>
+            </div>
+            <button type="button" onclick="openDashboardModal()" style="width: 100%; padding: 12px; background: #10b981; color: #000; font-weight: 800; font-size: 13px; border: none; border-radius: 8px; cursor: pointer;">
+              📊 View Rescued Meals in Dashboard
+            </button>
+          </div>
+
+          <!-- Feed Panel -->
+          <div class="feed-panel">
+            <div class="feed-heading">
+              <div>
+                <h3 id="feed-heading-title">Nearby human donations</h3>
+                <p id="listing-count">Loading active listings...</p>
+              </div>
+              <button class="icon-button" id="refresh-feed" type="button" onclick="loadFeed()" aria-label="Refresh listings"><i class="fa-solid fa-arrows-rotate"></i></button>
+            </div>
+            <div class="listing-feed" id="listing-feed" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Modals -->
+    <!-- Donor / NGO Impact Dashboard Modal -->
+    <div id="dashboard-modal" class="modal-overlay">
+      <div class="dashboard-modal-card">
+        <div class="dash-header">
+          <div class="dash-user-wrap">
+            <div class="dash-avatar" id="dash-avatar-icon">🏛️</div>
+            <div>
+              <h3 id="dash-user-name">User Profile</h3>
+              <p id="dash-user-role">Verified Account</p>
+            </div>
+          </div>
+          <button type="button" class="close-x-btn" onclick="closeDashboardModal()">✕</button>
+        </div>
+
+        <div class="dash-stats-grid">
+          <div class="stat-box"><small>Total Contributions</small><strong id="dash-stat-meals" class="stat-green">0</strong></div>
+          <div class="stat-box"><small>Trust Reliability</small><strong id="dash-stat-trust" class="stat-blue">100%</strong></div>
+          <div class="stat-box"><small>CO2 Offset Saved</small><strong id="dash-stat-co2" class="stat-amber">0 kg</strong></div>
+        </div>
+
+        <!-- Activity History List -->
+        <div style="margin-bottom: 20px;">
+          <div class="dash-section-head">
+            <h4 id="dash-activity-title">My Rescue History</h4>
+            <span class="sub-sync">Synced live with database</span>
+          </div>
+          <div id="dash-activity-list" class="dash-list-scroll"></div>
+        </div>
+
+        <!-- Donor Exclusive: Feedback & Reviews Section -->
+        <div id="dash-feedback-section" style="display: none; border-top: 1px solid var(--border-medium); padding-top: 16px;">
+          <div class="dash-section-head">
+            <h4 style="font-size: 15px; color: #fff; display: flex; align-items: center; gap: 8px;">
+              <span>💌</span> Volunteer & Community Feedback
+            </h4>
+            <span class="sub-sync" id="dash-feedback-count">0 Received</span>
+          </div>
+          <div id="dash-feedback-list" class="dash-list-scroll" style="max-height: 180px; overflow-y: auto;">
+            <p style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 14px;">No incoming reviews yet.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unified Auth Modal -->
+    <div id="auth-modal" class="modal-overlay">
+      <div class="auth-modal-card">
+        <div class="modal-top-row">
+          <h3 id="auth-modal-title">Account Portal</h3>
+          <button type="button" class="close-x-btn" onclick="closeAuthModal()">✕</button>
+        </div>
+
+        <div class="role-switcher-tabs">
+          <button type="button" id="tab-btn-ngo" onclick="setAuthRoleTab('NGO')">🏛️ NGO / Shelter</button>
+          <button type="button" id="tab-btn-donor" onclick="setAuthRoleTab('DONOR')">🍲 Donor / Banquet</button>
+        </div>
+
+        <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+          <div id="auth-name-field" class="form-group">
+            <label>Admin Name</label>
+            <input type="text" id="auth-input-name" placeholder="e.g. Ramesh Kumar" />
+          </div>
+
+          <div id="auth-org-field" class="form-group">
+            <label>Organization / Shelter Name</label>
+            <input type="text" id="auth-input-org" placeholder="e.g. Robin Hood Army / Delhi Shelter Hub" />
+          </div>
+
+          <div id="auth-darpan-field" class="darpan-box">
+            <label>🏛️ NITI Aayog Darpan ID (Mandatory for NGOs)</label>
+            <input type="text" id="auth-input-darpan" placeholder="e.g. DL/2018/0192831" />
+            <p>Verified against Govt NGO Darpan registry.</p>
+          </div>
+
+          <div class="form-group">
+            <label>Mobile Phone Number</label>
+            <input type="tel" id="auth-input-phone" placeholder="10-digit number" required />
+          </div>
+
+          <button type="submit" id="auth-submit-btn" class="auth-submit-action">Verify & Create Account</button>
+          <p id="auth-toggle-msg" class="auth-toggle-text" onclick="toggleAuthMode()">Already registered? <span>Click here to Sign In</span></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- OTP Verification Modal -->
+    <div id="otp-modal" class="modal-overlay">
+      <div class="otp-modal-card">
+        <div class="otp-icon">📲</div>
+        <h3>Verify Phone Number</h3>
+        <p>Enter 4-digit code sent to your mobile.</p>
+        <div id="otp-banner">Mock SMS Code: <strong id="generated-otp-display">....</strong></div>
+        <input type="text" id="otp-input-field" maxlength="4" placeholder="••••" />
+        <div class="modal-btn-row">
+          <button id="otp-cancel-btn" type="button" onclick="document.getElementById('otp-modal').style.display='none'">Cancel</button>
+          <button id="otp-verify-btn" type="button" onclick="confirmOTPVerification()">Confirm OTP</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- QR Handover Modal -->
+    <div id="qr-modal" class="modal-overlay">
+      <div class="qr-modal-card">
+        <h3>🤝 Handover Verification</h3>
+        <p>Volunteer must scan this QR code on arrival to confirm safe collection.</p>
+        <div id="qrcode-container"></div>
+        <p id="qr-handshake-status">Status: Awaiting Volunteer Handshake...</p>
+        <button id="qr-close-btn" onclick="document.getElementById('qr-modal').style.display='none'">Close</button>
+      </div>
+    </div>
+
+    <!-- Live QR Scanner Modal -->
+    <div id="qr-scanner-modal" class="modal-overlay">
+      <div class="qr-modal-card" style="max-width: 400px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="font-size: 16px; color: #fff; margin: 0;">📷 Scan Donor Pickup QR</h3>
+          <button type="button" class="close-x-btn" onclick="closeQRScanner()">✕</button>
+        </div>
+        <p style="font-size: 12px; color: #a1a1aa; margin-bottom: 14px;">Point camera at the donor's Handshake QR to verify pickup.</p>
+        <div id="qr-reader-box" style="width: 100%; border-radius: 12px; overflow: hidden; background: #000; min-height: 220px;"></div>
+        <div id="scan-feedback-msg" style="margin-top: 12px; font-size: 12px; font-weight: 700; color: #34d399;"></div>
+        <button type="button" onclick="closeQRScanner()" style="width: 100%; margin-top: 12px; padding: 10px; background: #27272a; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px;">Cancel Scanning</button>
+      </div>
+    </div>
+
+    <!-- Geotagged Incident Dispute Evidence Modal (<300m Strict Proof) -->
+    <div id="dispute-modal" class="modal-overlay">
+      <div class="dashboard-modal-card" style="max-width: 440px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="font-size: 16px; color: #f87171; display: flex; align-items: center; gap: 8px;">
+            <span>🚩</span> File Official Incident Report
+          </h3>
+          <button type="button" class="close-x-btn" onclick="closeDisputeModal()">✕</button>
+        </div>
+        
+        <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); padding: 10px 12px; border-radius: 8px; font-size: 11px; color: #fca5a5; margin-bottom: 14px; line-height: 1.5;">
+          <strong>⚠️ Anti-Griefing Security:</strong> You must be within <strong>300m</strong> of the physical pickup site. Your NGO Darpan signature and live photo evidence will be immutably recorded.
+        </div>
+
+        <form id="dispute-form" onsubmit="submitDisputeReport(event)">
+          <input type="hidden" id="dispute-listing-id" />
+          <input type="hidden" id="dispute-listing-lat" />
+          <input type="hidden" id="dispute-listing-lon" />
+
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label style="font-size: 12px; color: #cbd5e1; margin-bottom: 4px;">Incident Violation Reason</label>
+            <select id="dispute-reason-select" style="padding: 10px; font-size: 12px;" required>
+              <option value="NO_FOOD_EMPTY_LOCATION">🚫 No food available at location / False Post</option>
+              <option value="SPOILED_ROTTEN_FOOD">🤢 Food is spoiled, foul smelling or unsafe</option>
+              <option value="WRONG_PHONE_UNREACHABLE">📞 Fake phone number / Repeatedly unreachable</option>
+              <option value="COMMERCIAL_DEMAND_MONEY">💰 Donor demanded payment/money for surplus</option>
+            </select>
+          </div>
+
+          <!-- On-Spot Camera Evidence Required -->
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label style="font-size: 12px; color: #cbd5e1; margin-bottom: 4px;">
+              📸 Physical Evidence Photo <span style="color: #ef4444;">* (Mandatory)</span>
+            </label>
+            
+            <div id="dispute-cam-box" style="border: 2px dashed #475569; border-radius: 8px; min-height: 140px; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; overflow: hidden; padding: 10px;">
+              <video id="dispute-video" autoplay playsinline style="width: 100%; max-height: 180px; object-fit: cover; display: none; border-radius: 6px;"></video>
+              <img id="dispute-preview-img" src="" style="width: 100%; max-height: 180px; object-fit: cover; display: none; border-radius: 6px;" alt="Evidence" />
+              
+              <div id="dispute-cam-placeholder" style="text-align: center;">
+                <p style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">Snap locked gate, empty vessel, or spoiled food</p>
+                <button type="button" onclick="startDisputeCamera()" style="background: #ef4444; color: #fff; font-size: 11px; font-weight: 800; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer;">
+                  📷 Open On-Spot Camera
+                </button>
+              </div>
+
+              <div id="dispute-cam-controls" style="display: none; position: absolute; bottom: 8px; gap: 8px;">
+                <button type="button" onclick="captureDisputeSnap()" style="background: #ef4444; color: #fff; font-size: 11px; font-weight: 800; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer;">
+                  🔴 Snap Evidence
+                </button>
+                <button type="button" onclick="stopDisputeCamera()" style="background: #334155; color: #fff; font-size: 11px; font-weight: 700; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer;">
+                  ✕ Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <button type="button" onclick="closeDisputeModal()" style="flex: 1; padding: 10px; background: #334155; color: #cbd5e1; border: none; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer;">
+              Cancel
+            </button>
+            <button type="submit" id="btn-submit-dispute" style="flex: 1; padding: 10px; background: #ef4444; color: #fff; border: none; border-radius: 8px; font-weight: 800; font-size: 12px; cursor: pointer;">
+              Sign & Submit Strike
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Safe Social Share Modal -->
+    <div id="share-modal" class="modal-overlay">
+      <div class="dashboard-modal-card" style="max-width: 400px; text-align: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h3 style="font-size: 18px; color: #fff; margin: 0;">📢 Share FoodLoop Network</h3>
+          <button type="button" class="close-x-btn" onclick="closeShareModal()">✕</button>
+        </div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Help local banquets, restaurants and shelters join Delhi-NCR's zero food waste movement.</p>
+        
+        <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap;">
+          <a id="share-whatsapp-btn" href="#" target="_blank" rel="noopener noreferrer" style="background: #25d366; color: #fff; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="fa-brands fa-whatsapp"></i> WhatsApp
+          </a>
+          <a id="share-twitter-btn" href="#" target="_blank" rel="noopener noreferrer" style="background: #1da1f2; color: #fff; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="fa-brands fa-x-twitter"></i> Post
+          </a>
+        </div>
+
+        <div style="background: #111827; border: 1px solid #334155; padding: 10px 14px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <span id="share-display-link" style="font-size: 12px; color: #38bdf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 230px;">https://foodloop-india.org</span>
+          <button type="button" onclick="copyShareLinkFallback()" style="background: #10b981; color: #000; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 11px; cursor: pointer;">
+            Copy Link
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contact & NGO Feedback Section -->
+    <section class="section contact-section" id="contact">
+      <div class="container contact-grid">
+        <div>
+          <p class="eyebrow"><span class="eyebrow-line"></span> Direct NGO-to-Donor Notes</p>
+          <h2>Send Volunteer Notes<br>to <em>Food Donors.</em></h2>
+          <p class="contact-copy">NGOs and volunteers can send direct feedback, thank-you notes, or pickup updates to food donors. The note will sync directly into the donor's private Impact Dashboard.</p>
+          
+          <div class="helpline-card">
+            <div class="helpline-icon">
+              <i class="fa-solid fa-phone"></i>
+            </div>
+            <div class="helpline-info">
+              <span class="helpline-title">Emergency Coordinator</span>
+              <a href="tel:+918800247247" class="helpline-phone">+91 8800 247 247</a>
+            </div>
+            <a href="tel:+918800247247" class="helpline-action" aria-label="Call emergency coordinator">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            </a>
+          </div>
+        </div>
+
+        <form class="contact-form" id="contact-form" onsubmit="handleContactSubmit(event)">
+          <h3>Send a note to Donor</h3>
+          
+          <div class="form-group">
+            <label style="font-size: 12px; color: #cbd5e1; margin-bottom: 4px;">Select Target Donor / Restaurant</label>
+            <select id="contact-donor-target" style="padding: 10px 14px; margin-bottom: 10px; font-size: 13px;">
+              <option value="ALL">📢 Broadcast to All Active Food Donors</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <input type="text" id="contact-name" placeholder="Your NGO / Volunteer Name" required>
+          </div>
+          <div class="form-group">
+            <input type="email" id="contact-email" placeholder="Official Email Address" required>
+          </div>
+          <div class="form-group">
+            <textarea id="contact-message" rows="4" placeholder="Write your review or pickup coordination note..." required></textarea>
+          </div>
+          <button class="button button-primary submit-contact-btn" type="submit">
+            Send note to Donor Dashboard <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer with Direct Official External Social Links -->
+  <footer class="site-footer">
+    <div class="container footer-main">
+      <div class="footer-brand-wrap">
+        <a class="brand" href="#hero"><span>food<span class="brand-accent">loop</span></span><span class="live-dot"></span></a>
+        <p class="footer-tagline">Good food. Better futures.</p>
+      </div>
+      <div class="socials">
+        <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a>
+        <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"><i class="fa-brands fa-linkedin-in"></i></a>
+        <a href="https://api.whatsapp.com/send?text=Join%20FoodLoop%20Delhi-NCR%20Food%20Rescue%20Network%3A%20https%3A%2F%2Ffoodloop-india.org" target="_blank" rel="noopener noreferrer" aria-label="Share via WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <span>© 2026 FoodLoop Network · Delhi-NCR Food Rescue</span>
+      <span class="footer-partners">In partnership with <b>Feeding India</b> · <b>Robin Hood Army</b> · <b>Delhi Gaushala Trust</b></span>
+    </div>
+  </footer>
+
+  <!-- Demo Switcher Control Bar -->
+  <div id="demo-persona-bar">
+    <span class="demo-tag">⚡ DEMO:</span>
+    <button type="button" class="btn-demo-donor" onclick="loginDemoPersona('DONOR')">🍛 Donor</button>
+    <button type="button" class="btn-demo-ngo" onclick="loginDemoPersona('NGO')">🏛️ NGO</button>
+    <button type="button" class="btn-demo-animal" onclick="loginDemoPersona('ANIMAL')">🐾 Gaushala/Animals</button>
+    <button type="button" class="btn-demo-guest" onclick="loginDemoPersona('GUEST')">👤 Visitor</button>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- 🤖 FLOATING GOOGLE GEMINI AI SUPPORT WIDGET -->
+  <!-- ========================================== -->
+  <div id="ai-support-widget" style="position: fixed; bottom: 85px; right: 24px; z-index: 9999999; font-family: 'DM Sans', sans-serif;">
+    
+    <!-- Floating Launcher Toggle Button -->
+    <button type="button" id="ai-chat-launcher" style="width: 60px; height: 60px; border-radius: 50%; background: #10b981; border: 3px solid #ffffff; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 28px; transition: transform 0.2s; pointer-events: auto;">
+      🤖
+    </button>
+
+    <!-- Chat Window Container -->
+    <div id="ai-chat-window" style="display: none; width: 360px; height: 490px; background: #1e293b; border: 1.5px solid #334155; border-radius: 16px; box-shadow: 0 24px 50px rgba(0,0,0,0.95); flex-direction: column; overflow: hidden; position: absolute; bottom: 75px; right: 0; z-index: 10000000;">
+      
+      <!-- Chat Header -->
+      <div style="background: #111827; padding: 14px 16px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 34px; height: 34px; border-radius: 50%; background: #10b981; color: #000; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800;">🤖</div>
+          <div>
+            <h4 style="font-size: 14px; font-weight: 800; color: #fff; margin: 0;">FoodLoop Gemini AI</h4>
+            <small style="font-size: 11px; color: #34d399; display: flex; align-items: center; gap: 4px;">
+              <span style="width: 6px; height: 6px; background: #34d399; border-radius: 50%;"></span> Live Online 24/7
+            </small>
+          </div>
+        </div>
+        <button type="button" id="ai-chat-close-btn" style="background: transparent; border: none; color: #94a3b8; font-size: 18px; font-weight: bold; cursor: pointer;">✕</button>
+      </div>
+
+      <!-- Messages Body -->
+      <div id="ai-chat-messages" style="flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #0b0f19;">
+        <div style="align-self: flex-start; max-width: 85%; background: #1e293b; border: 1px solid #334155; padding: 10px 12px; border-radius: 12px 12px 12px 2px; font-size: 12px; color: #f8fafc; line-height: 1.4;">
+          Namaste! 🙏 I am your <strong>FoodLoop Gemini AI Assistant</strong>. How can I help you today?<br><br>
+          Quick topics:
+          <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">
+            <button type="button" class="quick-ai-btn" data-query="How to post food with live camera?" style="background: #334155; border: 1px solid #475569; color: #38bdf8; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer;">🍲 Post Food</button>
+            <button type="button" class="quick-ai-btn" data-query="How to claim food with NGO Darpan ID?" style="background: #334155; border: 1px solid #475569; color: #38bdf8; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer;">🏛️ NGO Claim</button>
+            <button type="button" class="quick-ai-btn" data-query="How does 80G tax certificate work?" style="background: #334155; border: 1px solid #475569; color: #38bdf8; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer;">📜 80G Tax</button>
+            <button type="button" class="quick-ai-btn" data-query="What is Animal Feed and Biogas Loop?" style="background: #334155; border: 1px solid #475569; color: #38bdf8; font-size: 10px; padding: 4px 8px; border-radius: 4px; cursor: pointer;">🐾 Animal Feed</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Input Area (No Form, No Page Reload) -->
+      <div style="padding: 10px 12px; background: #111827; border-top: 1px solid #334155; display: flex; gap: 8px;">
+        <input type="text" id="ai-chat-input" placeholder="Ask anything about FoodLoop..." autocomplete="off" style="flex: 1; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 12px; outline: none;" />
+        <button type="button" id="ai-send-btn" style="background: #10b981; border: none; border-radius: 8px; padding: 8px 14px; color: #000; font-weight: 800; font-size: 13px; cursor: pointer;">
+          ➤
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="script.js"></script>
+</body>
+</html>
