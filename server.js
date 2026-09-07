@@ -14,6 +14,8 @@
 // Module 10: Diagnostics, Reset Handlers & Server Listener
 // ==========================================
 
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -33,7 +35,7 @@ app.use(express.static(__dirname));
 // --------------------------------------------------
 // 1. LIVE GOOGLE GEMINI AI CONFIGURATION
 // --------------------------------------------------
-const GEMINI_API_KEY = "YOUR_API_KEY_HERE";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const FOODLOOP_KNOWLEDGE_BASE = `
 You are the official FoodLoop AI Assistant for Delhi-NCR's surplus food rescue network.
 Always be polite, helpful, concise, and authentic. Answer user queries in the exact language/style they use (Hindi, Hinglish, English, etc.).
@@ -78,7 +80,7 @@ Answer accurately and clearly based on these rules.
 // --------------------------------------------------
 // 2. MONGOOSE DATABASE CONNECTION
 // --------------------------------------------------
-const MONGO_URI = 'mongodb://127.0.0.1:27017/foodloop';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/foodloop';
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ Connected to Local MongoDB Database!'))
@@ -170,6 +172,13 @@ app.post('/api/ai/chat', async (req, res) => {
 
   if (!message) {
     return res.status(400).json({ error: 'Message text is required' });
+  }
+
+  // Fallback to local assistant if Gemini API key is not configured
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_API_KEY_HERE' || GEMINI_API_KEY.includes('your_gemini_api_key')) {
+    return res.json({ 
+      reply: `Namaste! FoodLoop AI system active hai. Aap kisi bhi feature (Live Camera proof, NITI Aayog Darpan claim, 80G Tax PDF, 300m Dispute, Animal Loop, ya Radar Map) ke baare me pooch sakte hain. Emergency Help: +91 8800 247 247.` 
+    });
   }
 
   try {
@@ -460,10 +469,11 @@ app.get('/', (req, res) => {
 // --------------------------------------------------
 // 10. SERVER BOOTSTRAPPER
 // --------------------------------------------------
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`====================================================`);
   console.log(`🚀 FoodLoop Master Server running on http://localhost:${PORT}`);
   console.log(`🛡️ Hardware Geotag & Anti-Fraud Security: ACTIVE`);
+  console.log(`🤖 Gemini AI Assistant: ${GEMINI_API_KEY && GEMINI_API_KEY !== 'YOUR_API_KEY_HERE' ? 'CONFIGURED (Cloud)' : 'LOCAL FALLBACK (Add GEMINI_API_KEY in .env)'}`);
   console.log(`====================================================`);
 });
