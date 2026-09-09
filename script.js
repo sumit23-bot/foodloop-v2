@@ -291,6 +291,48 @@ function drawAndDisplaySnap(video) {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+  // --- Burn Geotag / Timestamp Directly into Canvas Pixels ---
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const coordsStr = userLiveCoords 
+    ? `${userLiveCoords.lat.toFixed(4)}°N, ${userLiveCoords.lon.toFixed(4)}°E` 
+    : 'Location Unavailable';
+
+  const fontSize = Math.max(12, Math.floor(canvas.width * 0.024));
+  const padding = Math.floor(fontSize * 0.8);
+  const boxHeight = fontSize * 4.4;
+  const boxWidth = Math.min(canvas.width - 24, Math.max(300, canvas.width * 0.58));
+  const boxX = 12;
+  const boxY = canvas.height - boxHeight - 12;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
+    ctx.fill();
+  } else {
+    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+  }
+
+  // Left green security accent bar
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(boxX, boxY, 4, boxHeight);
+
+  // Monospace security text burned into pixels
+  ctx.font = `bold ${fontSize}px "Courier New", Courier, monospace`;
+  ctx.fillStyle = '#34d399';
+  ctx.fillText('🛡️ FoodLoop Verified Live Proof', boxX + padding + 4, boxY + fontSize * 1.3);
+
+  ctx.font = `${Math.floor(fontSize * 0.9)}px "Courier New", Courier, monospace`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(`📅 ${dateStr} ${timeStr}`, boxX + padding + 4, boxY + fontSize * 2.5);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText(`📍 GPS: ${coordsStr}`, boxX + padding + 4, boxY + fontSize * 3.6);
+  ctx.restore();
+
   window.stopInAppCamera();
   isLiveCameraCapture = true;
 
