@@ -234,21 +234,87 @@ app.post('/api/ai/chat', async (req, res) => {
 // 4. HARDWARE CAPTURE & SECURITY VERIFICATION ROUTE
 // --------------------------------------------------
 app.post('/api/ai/verify-food', async (req, res) => {
-  try {
-    const { imageBase64 } = req.body;
-    if (!imageBase64) {
-      return res.status(400).json({ isFood: false, foodName: "No image provided" });
-    }
+  const { imageBase64 } = req.body;
+  if (!imageBase64) {
+    return res.status(400).json({ isFood: false, foodName: "No image provided" });
+  }
 
+  // Fallback to mock verification if Gemini API key is not configured
+  const isKeyConfigured = GEMINI_API_KEY && 
+                          GEMINI_API_KEY !== 'YOUR_API_KEY_HERE' && 
+                          !GEMINI_API_KEY.includes('your_gemini_api_key');
+
+  if (!isKeyConfigured) {
+    console.warn('⚠️ [DEV WARNING] GEMINI_API_KEY is not configured. Falling back to default food verification (isFood: true).');
     return res.json({
       isFood: true,
       foodName: "Live Hardware Camera Verified",
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
+  }
+
+  try {
+    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+    const promptText = "Analyze this image and determine strictly whether it shows real, edible food suitable for donation. " +
+      "Answer strictly with YES or NO as the very first word. " +
+      "If YES, follow with a brief 2-5 word description of the food item (e.g., 'YES, Cooked rice and curry'). " +
+      "If NO, follow with a short reason (e.g., 'NO, This is an electronic device').";
+
+    const payload = {
+      contents: [{
+        parts: [
+          { text: promptText },
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: cleanBase64
+            }
+          }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 60
+      }
+    };
+
+    const aiRes = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (aiRes.ok) {
+      const aiData = await aiRes.json();
+      const reply = aiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+
+      if (/^yes\b/i.test(reply)) {
+        const foodDesc = reply.replace(/^yes[,\s:-]*/i, '').trim() || 'Verified Edible Food';
+        return res.json({
+          isFood: true,
+          foodName: foodDesc,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        return res.json({
+          isFood: false,
+          foodName: 'Could not verify — please retake the photo'
+        });
+      }
+    } else {
+      console.warn('Gemini Vision API returned non-OK status:', aiRes.status);
+      return res.json({
+        isFood: false,
+        foodName: 'Could not verify — please retake the photo'
+      });
+    }
+  } catch (err) {
+    console.warn('Gemini Vision API call failed:', err.message);
     return res.json({
-      isFood: true,
-      foodName: "Live Hardware Camera Verified"
+      isFood: false,
+      foodName: 'Could not verify — please retake the photo'
     });
   }
 });
