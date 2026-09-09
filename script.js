@@ -291,6 +291,48 @@ function drawAndDisplaySnap(video) {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+  // --- Burn Geotag / Timestamp Directly into Canvas Pixels ---
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const coordsStr = userLiveCoords 
+    ? `${userLiveCoords.lat.toFixed(4)}°N, ${userLiveCoords.lon.toFixed(4)}°E` 
+    : 'Location Unavailable';
+
+  const fontSize = Math.max(12, Math.floor(canvas.width * 0.024));
+  const padding = Math.floor(fontSize * 0.8);
+  const boxHeight = fontSize * 4.4;
+  const boxWidth = Math.min(canvas.width - 24, Math.max(300, canvas.width * 0.58));
+  const boxX = 12;
+  const boxY = canvas.height - boxHeight - 12;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
+    ctx.fill();
+  } else {
+    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+  }
+
+  // Left green security accent bar
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(boxX, boxY, 4, boxHeight);
+
+  // Monospace security text burned into pixels
+  ctx.font = `bold ${fontSize}px "Courier New", Courier, monospace`;
+  ctx.fillStyle = '#34d399';
+  ctx.fillText('🛡️ FoodLoop Verified Live Proof', boxX + padding + 4, boxY + fontSize * 1.3);
+
+  ctx.font = `${Math.floor(fontSize * 0.9)}px "Courier New", Courier, monospace`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(`📅 ${dateStr} ${timeStr}`, boxX + padding + 4, boxY + fontSize * 2.5);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText(`📍 GPS: ${coordsStr}`, boxX + padding + 4, boxY + fontSize * 3.6);
+  ctx.restore();
+
   window.stopInAppCamera();
   isLiveCameraCapture = true;
 
@@ -490,7 +532,10 @@ window.submitDisputeReport = async function(e) {
   try {
     const res = await fetch(`${API_URL}/${listingId}/report-fake`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentUser?.token || ''}`
+      },
       body: JSON.stringify({
         reporter_name: currentUser.org_name || currentUser.name,
         reporter_phone: currentUser.phone,
@@ -890,7 +935,11 @@ window.openDashboardModal = async function() {
       feedbackSection.style.display = 'block';
       try {
         const fetchUrl = `${CONTACT_URL}?donor_phone=${encodeURIComponent(currentUser.phone || 'ALL')}`;
-        const res = await fetch(fetchUrl);
+        const res = await fetch(fetchUrl, {
+          headers: {
+            'Authorization': `Bearer ${currentUser?.token || ''}`
+          }
+        });
         const notes = await res.json();
         
         if (Array.isArray(notes) && notes.length > 0) {
@@ -943,6 +992,8 @@ window.openAuthModal = function(mode = 'LOGIN') {
 window.closeAuthModal = function() {
   const modal = document.getElementById('auth-modal');
   if (modal) modal.style.display = 'none';
+  const pass = document.getElementById('auth-input-password');
+  if (pass) pass.value = '';
 };
 
 window.setAuthRoleTab = function(role) {
@@ -1003,6 +1054,7 @@ window.handleAuthSubmit = async function(e) {
   
   let rawPhone = document.getElementById('auth-input-phone')?.value || '';
   let phone = cleanPhoneNumber(rawPhone);
+  let password = (document.getElementById('auth-input-password')?.value || '').trim();
   
   let name = (document.getElementById('auth-input-name')?.value || '').trim();
   let org = (document.getElementById('auth-input-org')?.value || '').trim();
@@ -1011,6 +1063,12 @@ window.handleAuthSubmit = async function(e) {
   if (!PHONE_REGEX.test(phone) || FAKE_PHONE_PATTERNS.includes(phone)) {
     alert('❌ Invalid Mobile Number!\nPlease enter a genuine 10-digit Indian phone number starting with 6, 7, 8, or 9.');
     document.getElementById('auth-input-phone')?.focus();
+    return;
+  }
+
+  if (!password || password.length < 6) {
+    alert('❌ Invalid Password!\nPassword must be at least 6 characters.');
+    document.getElementById('auth-input-password')?.focus();
     return;
   }
 
@@ -1048,7 +1106,7 @@ window.handleAuthSubmit = async function(e) {
       res = await fetch(`${AUTH_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone })
+        body: JSON.stringify({ phone: phone, password: password })
       });
     } else {
       res = await fetch(`${AUTH_URL}/register`, {
@@ -1057,6 +1115,7 @@ window.handleAuthSubmit = async function(e) {
         body: JSON.stringify({
           name: name,
           phone: phone,
+          password: password,
           role: selectedRole,
           org_name: org,
           ngo_darpan_id: darpan
@@ -1072,6 +1131,8 @@ window.handleAuthSubmit = async function(e) {
 
     currentUser = data;
     localStorage.setItem('foodloop_auth_user', JSON.stringify(currentUser));
+    const passInput = document.getElementById('auth-input-password');
+    if (passInput) passInput.value = '';
     closeAuthModal();
     updateNavbarAuthState();
     applyRoleBasedViewPermissions();
@@ -1365,7 +1426,10 @@ window.attemptNGOClaim = async function(id) {
   try {
     await fetch(`${API_URL}/${id}/claim`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentUser?.token || ''}`
+      },
       body: JSON.stringify({
         claimant_phone: currentUser.phone,
         claimant_org: currentUser.org_name || currentUser.name

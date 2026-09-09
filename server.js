@@ -21,8 +21,41 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const sharp = require('sharp');
+const { body, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'foodloop_secret_key_2026';
 
 const app = express();
+
+// Rate Limiting Configuration
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes.' }
+});
+app.use('/api/', apiLimiter);
+
+const donationSubmissionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many submissions from this IP, please wait before trying again.' }
+});
+
+const validateRequest = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: errors.array()[0].msg, errors: errors.array() });
+  }
+  next();
+};
 
 // Middleware Configuration
 app.use(cors());
@@ -90,6 +123,7 @@ mongoose.connect(MONGO_URI)
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   phone: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
   role: { type: String, enum: ['DONOR', 'NGO', 'SHELTER', 'VOLUNTEER', 'ANIMAL_SHELTER'], default: 'DONOR' },
   org_name: { type: String, default: '' },
   ngo_darpan_id: { type: String, default: '' },
@@ -157,8 +191,8 @@ const KNOWN_WEB_IMAGE_HASHES = new Set([
 ]);
 
 let memoryUsers = [
-  { name: 'Rohan Sharma (Manager)', phone: '9811122233', role: 'DONOR', org_name: 'Grand Hyatt Delhi Banquet', is_verified: true, trust_score: 100 },
-  { name: 'Priya Verma (Delhi Lead)', phone: '9877788899', role: 'NGO', org_name: 'Robin Hood Army (Delhi Shelter Hub)', ngo_darpan_id: 'DL/2024/008194', is_verified: true, trust_score: 100 }
+  { name: 'Rohan Sharma (Manager)', phone: '9811122233', password: bcrypt.hashSync('password123', 10), role: 'DONOR', org_name: 'Grand Hyatt Delhi Banquet', is_verified: true, trust_score: 100 },
+  { name: 'Priya Verma (Delhi Lead)', phone: '9877788899', password: bcrypt.hashSync('password123', 10), role: 'NGO', org_name: 'Robin Hood Army (Delhi Shelter Hub)', ngo_darpan_id: 'DL/2024/008194', is_verified: true, trust_score: 100 }
 ];
 let memoryDonations = [];
 let memoryContacts = [];
@@ -229,75 +263,309 @@ app.post('/api/ai/chat', async (req, res) => {
 // 4. HARDWARE CAPTURE & SECURITY VERIFICATION ROUTE
 // --------------------------------------------------
 app.post('/api/ai/verify-food', async (req, res) => {
-  try {
-    const { imageBase64 } = req.body;
-    if (!imageBase64) {
-      return res.status(400).json({ isFood: false, foodName: "No image provided" });
-    }
+  const { imageBase64 } = req.body;
+  if (!imageBase64) {
+    return res.status(400).json({ isFood: false, foodName: "No image provided" });
+  }
 
+  // Fallback to mock verification if Gemini API key is not configured
+  const isKeyConfigured = GEMINI_API_KEY && 
+                          GEMINI_API_KEY !== 'YOUR_API_KEY_HERE' && 
+                          !GEMINI_API_KEY.includes('your_gemini_api_key');
+
+  if (!isKeyConfigured) {
+    console.warn('⚠️ [DEV WARNING] GEMINI_API_KEY is not configured. Falling back to default food verification (isFood: true).');
     return res.json({
       isFood: true,
       foodName: "Live Hardware Camera Verified",
       timestamp: new Date().toISOString()
     });
-  } catch (error) {
+  }
+
+  try {
+    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+    const promptText = "Analyze this image and determine strictly whether it shows real, edible food suitable for donation. " +
+      "Answer strictly with YES or NO as the very first word. " +
+      "If YES, follow with a brief 2-5 word description of the food item (e.g., 'YES, Cooked rice and curry'). " +
+      "If NO, follow with a short reason (e.g., 'NO, This is an electronic device').";
+
+    const payload = {
+      contents: [{
+        parts: [
+          { text: promptText },
+          {
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: cleanBase64
+            }
+          }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 60
+      }
+    };
+
+    const aiRes = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (aiRes.ok) {
+      const aiData = await aiRes.json();
+      const reply = aiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+
+      if (/^yes\b/i.test(reply)) {
+        const foodDesc = reply.replace(/^yes[,\s:-]*/i, '').trim() || 'Verified Edible Food';
+        return res.json({
+          isFood: true,
+          foodName: foodDesc,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        return res.json({
+          isFood: false,
+          foodName: 'Could not verify — please retake the photo'
+        });
+      }
+    } else {
+      console.warn('Gemini Vision API returned non-OK status:', aiRes.status);
+      return res.json({
+        isFood: false,
+        foodName: 'Could not verify — please retake the photo'
+      });
+    }
+  } catch (err) {
+    console.warn('Gemini Vision API call failed:', err.message);
     return res.json({
-      isFood: true,
-      foodName: "Live Hardware Camera Verified"
+      isFood: false,
+      foodName: 'Could not verify — please retake the photo'
     });
   }
 });
 
 // --------------------------------------------------
-// 5. REVERSE IMAGE LOOKUP (ANTI-STOCK PHOTO)
+// 5. PERCEPTUAL IMAGE HASHING & REVERSE LOOKUP (ANTI-STOCK PHOTO)
 // --------------------------------------------------
+async function computePerceptualHash(base64Image) {
+  if (!base64Image) return '';
+  try {
+    const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    
+    // Resize to 8x8 fixed square, grayscale raw buffer (64 bytes)
+    const rawPixels = await sharp(buffer)
+      .resize(8, 8, { fit: 'fill' })
+      .grayscale()
+      .raw()
+      .toBuffer();
+
+    let sum = 0;
+    for (let i = 0; i < 64; i++) {
+      sum += rawPixels[i];
+    }
+    const avg = sum / 64;
+
+    // 64-bit binary string: 1 if pixel brightness >= avg, 0 otherwise
+    let bitstring = '';
+    for (let i = 0; i < 64; i++) {
+      bitstring += rawPixels[i] >= avg ? '1' : '0';
+    }
+
+    // Convert 64 bits to 16 hex characters
+    let hexHash = '';
+    for (let i = 0; i < 64; i += 4) {
+      hexHash += parseInt(bitstring.substring(i, i + 4), 2).toString(16);
+    }
+    return hexHash;
+  } catch (err) {
+    console.warn('Perceptual hash computation failed:', err.message);
+    return '';
+  }
+}
+
+function hammingDistance(hex1, hex2) {
+  if (!hex1 || !hex2 || hex1.length !== hex2.length) return 64;
+  let dist = 0;
+  for (let i = 0; i < hex1.length; i++) {
+    let xor = parseInt(hex1[i], 16) ^ parseInt(hex2[i], 16);
+    while (xor > 0) {
+      dist += xor & 1;
+      xor >>= 1;
+    }
+  }
+  return dist;
+}
+
 app.post('/api/donations/verify-web-duplicate', async (req, res) => {
   const { imageBase64, isLiveCapture } = req.body;
   if (isLiveCapture) return res.json({ isDuplicateFound: false, matchSource: 'Live Hardware Camera Verified' });
   if (!imageBase64) return res.status(400).json({ error: 'Image required for analysis' });
 
-  const hash = crypto.createHash('sha256').update(imageBase64).digest('hex');
-  const isWebMatch = KNOWN_WEB_IMAGE_HASHES.has(hash);
-  const existingPost = await Donation.findOne({ image_hash: hash });
+  const pHash = await computePerceptualHash(imageBase64);
+  if (!pHash) {
+    return res.json({ isDuplicateFound: false, matchSource: 'Original Unindexed Photo' });
+  }
 
-  if (isWebMatch || existingPost) {
+  const DUPLICATE_THRESHOLD = 5;
+  let isMatch = false;
+
+  // 1. Check known web hashes
+  for (const storedHash of KNOWN_WEB_IMAGE_HASHES) {
+    if (storedHash.length === 16 && hammingDistance(pHash, storedHash) <= DUPLICATE_THRESHOLD) {
+      isMatch = true;
+      break;
+    }
+  }
+
+  // 2. Check existing database posts
+  if (!isMatch) {
+    try {
+      const existingPosts = await Donation.find({ image_hash: { $exists: true, $ne: '' } }).select('image_hash');
+      for (const post of existingPosts) {
+        if (post.image_hash && post.image_hash.length === 16 && hammingDistance(pHash, post.image_hash) <= DUPLICATE_THRESHOLD) {
+          isMatch = true;
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 3. Check memory fallback donations
+  if (!isMatch) {
+    for (const memItem of memoryDonations) {
+      if (memItem.image_hash && memItem.image_hash.length === 16 && hammingDistance(pHash, memItem.image_hash) <= DUPLICATE_THRESHOLD) {
+        isMatch = true;
+        break;
+      }
+    }
+  }
+
+  if (isMatch) {
     return res.json({ isDuplicateFound: true, matchSource: 'Exact match found on Google Search / Public Web Assets' });
   }
 
-  KNOWN_WEB_IMAGE_HASHES.add(hash);
+  KNOWN_WEB_IMAGE_HASHES.add(pHash);
   return res.json({ isDuplicateFound: false, matchSource: 'Original Unindexed Photo' });
 });
 
 // --------------------------------------------------
-// 6. AUTHENTICATION & REGISTRATION ENDPOINTS
+// 6. AUTHENTICATION & NITI AAYOG DARPAN ID RBAC
 // --------------------------------------------------
-app.post('/api/auth/register', async (req, res) => {
-  const { name, phone, role, org_name, ngo_darpan_id } = req.body;
+function generateToken(user) {
+  return jwt.sign(
+    {
+      id: user._id ? user._id.toString() : user.id,
+      phone: user.phone,
+      role: user.role,
+      org_name: user.org_name,
+      name: user.name,
+      ngo_darpan_id: user.ngo_darpan_id
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+const requireAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required. No token provided.' });
+  }
+  const token = authHeader.split(' ')[1];
   try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+  }
+};
+
+app.post('/api/auth/register', [
+  body('name').trim().notEmpty().withMessage('Name is required and cannot be empty.'),
+  body('phone').trim().matches(/^(\+?91)?[6-9]\d{9}$/).withMessage('Valid 10-digit Indian mobile number is required.'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long.'),
+  validateRequest
+], async (req, res) => {
+  const { name, phone, role, org_name, ngo_darpan_id, password } = req.body;
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
     let existing = await User.findOne({ phone });
     if (existing) return res.status(400).json({ error: 'Phone already registered.' });
 
-    const newUser = new User({ name, phone, role, org_name: org_name || name, ngo_darpan_id: ngo_darpan_id || '', is_verified: true });
+    const newUser = new User({ 
+      name, 
+      phone, 
+      password: hashedPassword,
+      role, 
+      org_name: org_name || name, 
+      ngo_darpan_id: ngo_darpan_id || '', 
+      is_verified: true 
+    });
     await newUser.save();
-    return res.status(201).json(newUser);
+
+    const token = generateToken(newUser);
+    const userObj = newUser.toObject();
+    delete userObj.password;
+    return res.status(201).json({ ...userObj, token });
   } catch (err) {
-    const fallbackUser = { id: Date.now().toString(), name, phone, role, org_name: org_name || name, ngo_darpan_id: ngo_darpan_id || '', is_verified: true, trust_score: 100 };
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    const fallbackUser = { 
+      id: Date.now().toString(), 
+      name, 
+      phone, 
+      password: hashedPassword,
+      role, 
+      org_name: org_name || name, 
+      ngo_darpan_id: ngo_darpan_id || '', 
+      is_verified: true, 
+      trust_score: 100 
+    };
     memoryUsers.push(fallbackUser);
-    return res.status(201).json(fallbackUser);
+    const token = generateToken(fallbackUser);
+    const { password: _, ...userSafe } = fallbackUser;
+    return res.status(201).json({ ...userSafe, token });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { phone } = req.body;
+  const { phone, password } = req.body;
+  if (!phone || !password) {
+    return res.status(400).json({ error: 'Phone number and password are required.' });
+  }
+
   try {
     const user = await User.findOne({ phone });
-    if (user) return res.json(user);
+    if (user) {
+      const isMatch = await bcrypt.compare(password, user.password || '');
+      if (!isMatch) {
+        return res.status(401).json({ error: 'Invalid phone or password.' });
+      }
+      const token = generateToken(user);
+      const userObj = user.toObject();
+      delete userObj.password;
+      return res.json({ ...userObj, token });
+    }
   } catch (e) {}
 
   const memUser = memoryUsers.find(u => u.phone === phone);
-  if (memUser) return res.json(memUser);
+  if (memUser) {
+    const isMatch = await bcrypt.compare(password, memUser.password || '');
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid phone or password.' });
+    }
+    const token = generateToken(memUser);
+    const { password: _, ...userSafe } = memUser;
+    return res.json({ ...userSafe, token });
+  }
 
-  return res.status(404).json({ error: 'Account not found! Please register first.' });
+  return res.status(401).json({ error: 'Invalid phone or password.' });
 });
 
 // --------------------------------------------------
@@ -312,13 +580,18 @@ app.get('/api/donations', async (req, res) => {
   }
 });
 
-app.post('/api/donations', async (req, res) => {
+app.post('/api/donations', donationSubmissionLimiter, [
+  body('title').trim().notEmpty().withMessage('Donation title is required and cannot be empty.'),
+  body('quantity').trim().notEmpty().withMessage('Quantity is required and cannot be empty.'),
+  body('address').trim().notEmpty().withMessage('Pickup address is required and cannot be empty.'),
+  validateRequest
+], async (req, res) => {
   const { phone, image, is_food_verified, is_live_capture, ai_detected_class, trust_score, verification_code } = req.body;
   if (memoryBlacklist.has(phone)) {
     return res.status(403).json({ error: 'This phone number is permanently blacklisted due to multiple verified disputes.' });
   }
 
-  const imageHash = image ? crypto.createHash('sha256').update(image).digest('hex') : '';
+  const imageHash = image ? await computePerceptualHash(image) : '';
 
   try {
     const newItem = new Donation({
@@ -339,7 +612,7 @@ app.post('/api/donations', async (req, res) => {
   }
 });
 
-app.patch('/api/donations/:id/claim', async (req, res) => {
+app.patch('/api/donations/:id/claim', requireAuth, async (req, res) => {
   const { claimant_phone, claimant_org } = req.body || {};
   try {
     const updated = await Donation.findByIdAndUpdate(
@@ -361,7 +634,7 @@ app.patch('/api/donations/:id/claim', async (req, res) => {
 // --------------------------------------------------
 // 8. PROOF-OF-GROUND DISPUTE & REPORT CONTROLLER
 // --------------------------------------------------
-app.post('/api/donations/:id/report-fake', async (req, res) => {
+app.post('/api/donations/:id/report-fake', donationSubmissionLimiter, requireAuth, async (req, res) => {
   const { reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km } = req.body;
 
   if (reporter_distance_km > 0.3) {
@@ -420,9 +693,13 @@ app.post('/api/donations/:id/report-fake', async (req, res) => {
 // --------------------------------------------------
 // 9. DIRECT NGO-TO-DONOR NOTES & FEEDBACK PIPELINE
 // --------------------------------------------------
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', [
+  body('name').trim().notEmpty().withMessage('Name is required and cannot be empty.'),
+  body('email').trim().isEmail().withMessage('A valid email address is required.'),
+  body('message').trim().notEmpty().withMessage('Message is required and cannot be empty.'),
+  validateRequest
+], async (req, res) => {
   const { name, email, message, donor_phone, donor_name } = req.body;
-  if (!name || !email || !message) return res.status(400).json({ error: 'All fields are required.' });
 
   try {
     const newNote = new Contact({ name, email, message, donor_phone: donor_phone || 'ALL', donor_name: donor_name || 'All Registered Donors' });
@@ -435,7 +712,7 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-app.get('/api/contact', async (req, res) => {
+app.get('/api/contact', requireAuth, async (req, res) => {
   const { donor_phone } = req.query;
   try {
     let query = {};
