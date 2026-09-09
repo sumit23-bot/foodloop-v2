@@ -24,10 +24,38 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const sharp = require('sharp');
+const { body, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'foodloop_secret_key_2026';
 
 const app = express();
+
+// Rate Limiting Configuration
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes.' }
+});
+app.use('/api/', apiLimiter);
+
+const donationSubmissionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many submissions from this IP, please wait before trying again.' }
+});
+
+const validateRequest = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ error: errors.array()[0].msg, errors: errors.array() });
+  }
+  next();
+};
 
 // Middleware Configuration
 app.use(cors());
@@ -458,11 +486,13 @@ const requireAuth = (req, res, next) => {
   }
 };
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', [
+  body('name').trim().notEmpty().withMessage('Name is required and cannot be empty.'),
+  body('phone').trim().matches(/^(\+?91)?[6-9]\d{9}$/).withMessage('Valid 10-digit Indian mobile number is required.'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long.'),
+  validateRequest
+], async (req, res) => {
   const { name, phone, role, org_name, ngo_darpan_id, password } = req.body;
-  if (!password || password.length < 6) {
-    return res.status(400).json({ error: 'Password is required and must be at least 6 characters.' });
-  }
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -550,7 +580,12 @@ app.get('/api/donations', async (req, res) => {
   }
 });
 
-app.post('/api/donations', async (req, res) => {
+app.post('/api/donations', donationSubmissionLimiter, [
+  body('title').trim().notEmpty().withMessage('Donation title is required and cannot be empty.'),
+  body('quantity').trim().notEmpty().withMessage('Quantity is required and cannot be empty.'),
+  body('address').trim().notEmpty().withMessage('Pickup address is required and cannot be empty.'),
+  validateRequest
+], async (req, res) => {
   const { phone, image, is_food_verified, is_live_capture, ai_detected_class, trust_score, verification_code } = req.body;
   if (memoryBlacklist.has(phone)) {
     return res.status(403).json({ error: 'This phone number is permanently blacklisted due to multiple verified disputes.' });
@@ -599,7 +634,7 @@ app.patch('/api/donations/:id/claim', requireAuth, async (req, res) => {
 // --------------------------------------------------
 // 8. PROOF-OF-GROUND DISPUTE & REPORT CONTROLLER
 // --------------------------------------------------
-app.post('/api/donations/:id/report-fake', requireAuth, async (req, res) => {
+app.post('/api/donations/:id/report-fake', donationSubmissionLimiter, requireAuth, async (req, res) => {
   const { reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km } = req.body;
 
   if (reporter_distance_km > 0.3) {
@@ -658,9 +693,13 @@ app.post('/api/donations/:id/report-fake', requireAuth, async (req, res) => {
 // --------------------------------------------------
 // 9. DIRECT NGO-TO-DONOR NOTES & FEEDBACK PIPELINE
 // --------------------------------------------------
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', [
+  body('name').trim().notEmpty().withMessage('Name is required and cannot be empty.'),
+  body('email').trim().isEmail().withMessage('A valid email address is required.'),
+  body('message').trim().notEmpty().withMessage('Message is required and cannot be empty.'),
+  validateRequest
+], async (req, res) => {
   const { name, email, message, donor_phone, donor_name } = req.body;
-  if (!name || !email || !message) return res.status(400).json({ error: 'All fields are required.' });
 
   try {
     const newNote = new Contact({ name, email, message, donor_phone: donor_phone || 'ALL', donor_name: donor_name || 'All Registered Donors' });
