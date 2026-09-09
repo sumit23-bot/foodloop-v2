@@ -23,6 +23,7 @@ const crypto = require('crypto');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const sharp = require('sharp');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'foodloop_secret_key_2026';
 
@@ -320,22 +321,107 @@ app.post('/api/ai/verify-food', async (req, res) => {
 });
 
 // --------------------------------------------------
-// 5. REVERSE IMAGE LOOKUP (ANTI-STOCK PHOTO)
+// 5. PERCEPTUAL IMAGE HASHING & REVERSE LOOKUP (ANTI-STOCK PHOTO)
 // --------------------------------------------------
+async function computePerceptualHash(base64Image) {
+  if (!base64Image) return '';
+  try {
+    const cleanBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    
+    // Resize to 8x8 fixed square, grayscale raw buffer (64 bytes)
+    const rawPixels = await sharp(buffer)
+      .resize(8, 8, { fit: 'fill' })
+      .grayscale()
+      .raw()
+      .toBuffer();
+
+    let sum = 0;
+    for (let i = 0; i < 64; i++) {
+      sum += rawPixels[i];
+    }
+    const avg = sum / 64;
+
+    // 64-bit binary string: 1 if pixel brightness >= avg, 0 otherwise
+    let bitstring = '';
+    for (let i = 0; i < 64; i++) {
+      bitstring += rawPixels[i] >= avg ? '1' : '0';
+    }
+
+    // Convert 64 bits to 16 hex characters
+    let hexHash = '';
+    for (let i = 0; i < 64; i += 4) {
+      hexHash += parseInt(bitstring.substring(i, i + 4), 2).toString(16);
+    }
+    return hexHash;
+  } catch (err) {
+    console.warn('Perceptual hash computation failed:', err.message);
+    return '';
+  }
+}
+
+function hammingDistance(hex1, hex2) {
+  if (!hex1 || !hex2 || hex1.length !== hex2.length) return 64;
+  let dist = 0;
+  for (let i = 0; i < hex1.length; i++) {
+    let xor = parseInt(hex1[i], 16) ^ parseInt(hex2[i], 16);
+    while (xor > 0) {
+      dist += xor & 1;
+      xor >>= 1;
+    }
+  }
+  return dist;
+}
+
 app.post('/api/donations/verify-web-duplicate', async (req, res) => {
   const { imageBase64, isLiveCapture } = req.body;
   if (isLiveCapture) return res.json({ isDuplicateFound: false, matchSource: 'Live Hardware Camera Verified' });
   if (!imageBase64) return res.status(400).json({ error: 'Image required for analysis' });
 
-  const hash = crypto.createHash('sha256').update(imageBase64).digest('hex');
-  const isWebMatch = KNOWN_WEB_IMAGE_HASHES.has(hash);
-  const existingPost = await Donation.findOne({ image_hash: hash });
+  const pHash = await computePerceptualHash(imageBase64);
+  if (!pHash) {
+    return res.json({ isDuplicateFound: false, matchSource: 'Original Unindexed Photo' });
+  }
 
-  if (isWebMatch || existingPost) {
+  const DUPLICATE_THRESHOLD = 5;
+  let isMatch = false;
+
+  // 1. Check known web hashes
+  for (const storedHash of KNOWN_WEB_IMAGE_HASHES) {
+    if (storedHash.length === 16 && hammingDistance(pHash, storedHash) <= DUPLICATE_THRESHOLD) {
+      isMatch = true;
+      break;
+    }
+  }
+
+  // 2. Check existing database posts
+  if (!isMatch) {
+    try {
+      const existingPosts = await Donation.find({ image_hash: { $exists: true, $ne: '' } }).select('image_hash');
+      for (const post of existingPosts) {
+        if (post.image_hash && post.image_hash.length === 16 && hammingDistance(pHash, post.image_hash) <= DUPLICATE_THRESHOLD) {
+          isMatch = true;
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 3. Check memory fallback donations
+  if (!isMatch) {
+    for (const memItem of memoryDonations) {
+      if (memItem.image_hash && memItem.image_hash.length === 16 && hammingDistance(pHash, memItem.image_hash) <= DUPLICATE_THRESHOLD) {
+        isMatch = true;
+        break;
+      }
+    }
+  }
+
+  if (isMatch) {
     return res.json({ isDuplicateFound: true, matchSource: 'Exact match found on Google Search / Public Web Assets' });
   }
 
-  KNOWN_WEB_IMAGE_HASHES.add(hash);
+  KNOWN_WEB_IMAGE_HASHES.add(pHash);
   return res.json({ isDuplicateFound: false, matchSource: 'Original Unindexed Photo' });
 });
 
@@ -470,7 +556,7 @@ app.post('/api/donations', async (req, res) => {
     return res.status(403).json({ error: 'This phone number is permanently blacklisted due to multiple verified disputes.' });
   }
 
-  const imageHash = image ? crypto.createHash('sha256').update(image).digest('hex') : '';
+  const imageHash = image ? await computePerceptualHash(image) : '';
 
   try {
     const newItem = new Donation({
