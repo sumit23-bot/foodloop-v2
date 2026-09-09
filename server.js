@@ -580,14 +580,18 @@ app.get('/api/donations', async (req, res) => {
   }
 });
 
-app.post('/api/donations', donationSubmissionLimiter, [
+app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
   body('title').trim().notEmpty().withMessage('Donation title is required and cannot be empty.'),
   body('quantity').trim().notEmpty().withMessage('Quantity is required and cannot be empty.'),
   body('address').trim().notEmpty().withMessage('Pickup address is required and cannot be empty.'),
   validateRequest
 ], async (req, res) => {
-  const { phone, image, is_food_verified, is_live_capture, ai_detected_class, trust_score, verification_code } = req.body;
-  if (memoryBlacklist.has(phone)) {
+  const { image, is_food_verified, is_live_capture, ai_detected_class, trust_score, verification_code } = req.body;
+  const donorPhone = req.user?.phone || req.body.phone;
+  const donorId = req.user?.id || req.body.donor_id || '';
+  const donorName = req.user?.name || req.body.donor_name || 'Anonymous Donor';
+
+  if (memoryBlacklist.has(donorPhone)) {
     return res.status(403).json({ error: 'This phone number is permanently blacklisted due to multiple verified disputes.' });
   }
 
@@ -596,6 +600,9 @@ app.post('/api/donations', donationSubmissionLimiter, [
   try {
     const newItem = new Donation({
       ...req.body,
+      phone: donorPhone,
+      donor_id: donorId,
+      donor_name: donorName,
       image_hash: imageHash,
       verification_code: verification_code || 'HW-AUTH',
       is_food_verified: is_food_verified !== undefined ? is_food_verified : true,
@@ -606,7 +613,15 @@ app.post('/api/donations', donationSubmissionLimiter, [
     await newItem.save();
     res.status(201).json(newItem);
   } catch (err) {
-    const fallbackItem = { id: Date.now().toString(), ...req.body, image_hash: imageHash, status: req.body.status || 'AVAILABLE' };
+    const fallbackItem = { 
+      id: Date.now().toString(), 
+      ...req.body, 
+      phone: donorPhone,
+      donor_id: donorId,
+      donor_name: donorName,
+      image_hash: imageHash, 
+      status: req.body.status || 'AVAILABLE' 
+    };
     memoryDonations.unshift(fallbackItem);
     res.status(201).json(fallbackItem);
   }
@@ -727,7 +742,8 @@ app.get('/api/contact', requireAuth, async (req, res) => {
 });
 
 // Diagnostics & Data Purge Route
-app.delete('/api/donations/purge-all', async (req, res) => {
+// NOTE: This is a destructive diagnostics route. In a real production deployment, it should be removed or strictly admin-gated.
+app.delete('/api/donations/purge-all', requireAuth, async (req, res) => {
   try {
     await Donation.deleteMany({});
     memoryDonations = [];
