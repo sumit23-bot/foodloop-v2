@@ -21,6 +21,10 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'foodloop_secret_key_2026';
 
 const app = express();
 
@@ -90,6 +94,7 @@ mongoose.connect(MONGO_URI)
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   phone: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
   role: { type: String, enum: ['DONOR', 'NGO', 'SHELTER', 'VOLUNTEER', 'ANIMAL_SHELTER'], default: 'DONOR' },
   org_name: { type: String, default: '' },
   ngo_darpan_id: { type: String, default: '' },
@@ -157,8 +162,8 @@ const KNOWN_WEB_IMAGE_HASHES = new Set([
 ]);
 
 let memoryUsers = [
-  { name: 'Rohan Sharma (Manager)', phone: '9811122233', role: 'DONOR', org_name: 'Grand Hyatt Delhi Banquet', is_verified: true, trust_score: 100 },
-  { name: 'Priya Verma (Delhi Lead)', phone: '9877788899', role: 'NGO', org_name: 'Robin Hood Army (Delhi Shelter Hub)', ngo_darpan_id: 'DL/2024/008194', is_verified: true, trust_score: 100 }
+  { name: 'Rohan Sharma (Manager)', phone: '9811122233', password: bcrypt.hashSync('password123', 10), role: 'DONOR', org_name: 'Grand Hyatt Delhi Banquet', is_verified: true, trust_score: 100 },
+  { name: 'Priya Verma (Delhi Lead)', phone: '9877788899', password: bcrypt.hashSync('password123', 10), role: 'NGO', org_name: 'Robin Hood Army (Delhi Shelter Hub)', ngo_darpan_id: 'DL/2024/008194', is_verified: true, trust_score: 100 }
 ];
 let memoryDonations = [];
 let memoryContacts = [];
@@ -269,35 +274,116 @@ app.post('/api/donations/verify-web-duplicate', async (req, res) => {
 });
 
 // --------------------------------------------------
-// 6. AUTHENTICATION & REGISTRATION ENDPOINTS
+// 6. AUTHENTICATION & NITI AAYOG DARPAN ID RBAC
 // --------------------------------------------------
-app.post('/api/auth/register', async (req, res) => {
-  const { name, phone, role, org_name, ngo_darpan_id } = req.body;
+function generateToken(user) {
+  return jwt.sign(
+    {
+      id: user._id ? user._id.toString() : user.id,
+      phone: user.phone,
+      role: user.role,
+      org_name: user.org_name,
+      name: user.name,
+      ngo_darpan_id: user.ngo_darpan_id
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+const requireAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required. No token provided.' });
+  }
+  const token = authHeader.split(' ')[1];
   try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+  }
+};
+
+app.post('/api/auth/register', async (req, res) => {
+  const { name, phone, role, org_name, ngo_darpan_id, password } = req.body;
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'Password is required and must be at least 6 characters.' });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
     let existing = await User.findOne({ phone });
     if (existing) return res.status(400).json({ error: 'Phone already registered.' });
 
-    const newUser = new User({ name, phone, role, org_name: org_name || name, ngo_darpan_id: ngo_darpan_id || '', is_verified: true });
+    const newUser = new User({ 
+      name, 
+      phone, 
+      password: hashedPassword,
+      role, 
+      org_name: org_name || name, 
+      ngo_darpan_id: ngo_darpan_id || '', 
+      is_verified: true 
+    });
     await newUser.save();
-    return res.status(201).json(newUser);
+
+    const token = generateToken(newUser);
+    const userObj = newUser.toObject();
+    delete userObj.password;
+    return res.status(201).json({ ...userObj, token });
   } catch (err) {
-    const fallbackUser = { id: Date.now().toString(), name, phone, role, org_name: org_name || name, ngo_darpan_id: ngo_darpan_id || '', is_verified: true, trust_score: 100 };
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    const fallbackUser = { 
+      id: Date.now().toString(), 
+      name, 
+      phone, 
+      password: hashedPassword,
+      role, 
+      org_name: org_name || name, 
+      ngo_darpan_id: ngo_darpan_id || '', 
+      is_verified: true, 
+      trust_score: 100 
+    };
     memoryUsers.push(fallbackUser);
-    return res.status(201).json(fallbackUser);
+    const token = generateToken(fallbackUser);
+    const { password: _, ...userSafe } = fallbackUser;
+    return res.status(201).json({ ...userSafe, token });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { phone } = req.body;
+  const { phone, password } = req.body;
+  if (!phone || !password) {
+    return res.status(400).json({ error: 'Phone number and password are required.' });
+  }
+
   try {
     const user = await User.findOne({ phone });
-    if (user) return res.json(user);
+    if (user) {
+      const isMatch = await bcrypt.compare(password, user.password || '');
+      if (!isMatch) {
+        return res.status(401).json({ error: 'Invalid phone or password.' });
+      }
+      const token = generateToken(user);
+      const userObj = user.toObject();
+      delete userObj.password;
+      return res.json({ ...userObj, token });
+    }
   } catch (e) {}
 
   const memUser = memoryUsers.find(u => u.phone === phone);
-  if (memUser) return res.json(memUser);
+  if (memUser) {
+    const isMatch = await bcrypt.compare(password, memUser.password || '');
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid phone or password.' });
+    }
+    const token = generateToken(memUser);
+    const { password: _, ...userSafe } = memUser;
+    return res.json({ ...userSafe, token });
+  }
 
-  return res.status(404).json({ error: 'Account not found! Please register first.' });
+  return res.status(401).json({ error: 'Invalid phone or password.' });
 });
 
 // --------------------------------------------------
@@ -339,7 +425,7 @@ app.post('/api/donations', async (req, res) => {
   }
 });
 
-app.patch('/api/donations/:id/claim', async (req, res) => {
+app.patch('/api/donations/:id/claim', requireAuth, async (req, res) => {
   const { claimant_phone, claimant_org } = req.body || {};
   try {
     const updated = await Donation.findByIdAndUpdate(
@@ -361,7 +447,7 @@ app.patch('/api/donations/:id/claim', async (req, res) => {
 // --------------------------------------------------
 // 8. PROOF-OF-GROUND DISPUTE & REPORT CONTROLLER
 // --------------------------------------------------
-app.post('/api/donations/:id/report-fake', async (req, res) => {
+app.post('/api/donations/:id/report-fake', requireAuth, async (req, res) => {
   const { reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km } = req.body;
 
   if (reporter_distance_km > 0.3) {
@@ -435,7 +521,7 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-app.get('/api/contact', async (req, res) => {
+app.get('/api/contact', requireAuth, async (req, res) => {
   const { donor_phone } = req.query;
   try {
     let query = {};

@@ -490,7 +490,10 @@ window.submitDisputeReport = async function(e) {
   try {
     const res = await fetch(`${API_URL}/${listingId}/report-fake`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentUser?.token || ''}`
+      },
       body: JSON.stringify({
         reporter_name: currentUser.org_name || currentUser.name,
         reporter_phone: currentUser.phone,
@@ -890,7 +893,11 @@ window.openDashboardModal = async function() {
       feedbackSection.style.display = 'block';
       try {
         const fetchUrl = `${CONTACT_URL}?donor_phone=${encodeURIComponent(currentUser.phone || 'ALL')}`;
-        const res = await fetch(fetchUrl);
+        const res = await fetch(fetchUrl, {
+          headers: {
+            'Authorization': `Bearer ${currentUser?.token || ''}`
+          }
+        });
         const notes = await res.json();
         
         if (Array.isArray(notes) && notes.length > 0) {
@@ -943,6 +950,8 @@ window.openAuthModal = function(mode = 'LOGIN') {
 window.closeAuthModal = function() {
   const modal = document.getElementById('auth-modal');
   if (modal) modal.style.display = 'none';
+  const pass = document.getElementById('auth-input-password');
+  if (pass) pass.value = '';
 };
 
 window.setAuthRoleTab = function(role) {
@@ -1003,6 +1012,7 @@ window.handleAuthSubmit = async function(e) {
   
   let rawPhone = document.getElementById('auth-input-phone')?.value || '';
   let phone = cleanPhoneNumber(rawPhone);
+  let password = (document.getElementById('auth-input-password')?.value || '').trim();
   
   let name = (document.getElementById('auth-input-name')?.value || '').trim();
   let org = (document.getElementById('auth-input-org')?.value || '').trim();
@@ -1011,6 +1021,12 @@ window.handleAuthSubmit = async function(e) {
   if (!PHONE_REGEX.test(phone) || FAKE_PHONE_PATTERNS.includes(phone)) {
     alert('❌ Invalid Mobile Number!\nPlease enter a genuine 10-digit Indian phone number starting with 6, 7, 8, or 9.');
     document.getElementById('auth-input-phone')?.focus();
+    return;
+  }
+
+  if (!password || password.length < 6) {
+    alert('❌ Invalid Password!\nPassword must be at least 6 characters.');
+    document.getElementById('auth-input-password')?.focus();
     return;
   }
 
@@ -1048,7 +1064,7 @@ window.handleAuthSubmit = async function(e) {
       res = await fetch(`${AUTH_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone })
+        body: JSON.stringify({ phone: phone, password: password })
       });
     } else {
       res = await fetch(`${AUTH_URL}/register`, {
@@ -1057,6 +1073,7 @@ window.handleAuthSubmit = async function(e) {
         body: JSON.stringify({
           name: name,
           phone: phone,
+          password: password,
           role: selectedRole,
           org_name: org,
           ngo_darpan_id: darpan
@@ -1072,6 +1089,8 @@ window.handleAuthSubmit = async function(e) {
 
     currentUser = data;
     localStorage.setItem('foodloop_auth_user', JSON.stringify(currentUser));
+    const passInput = document.getElementById('auth-input-password');
+    if (passInput) passInput.value = '';
     closeAuthModal();
     updateNavbarAuthState();
     applyRoleBasedViewPermissions();
@@ -1365,7 +1384,10 @@ window.attemptNGOClaim = async function(id) {
   try {
     await fetch(`${API_URL}/${id}/claim`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentUser?.token || ''}`
+      },
       body: JSON.stringify({
         claimant_phone: currentUser.phone,
         claimant_org: currentUser.org_name || currentUser.name
