@@ -168,10 +168,10 @@ function initMap() {
   }).setView([userGPS.lat, userGPS.lon], 12);
 
   // Free OpenStreetMap Standard Tiles (No Watermark & Dark Theme Friendly)
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(mapInstance);
+ L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19,
+  attribution: '&copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ'
+}).addTo(mapInstance);
 
   markersLayerGroup = L.layerGroup().addTo(mapInstance);
 
