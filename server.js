@@ -216,7 +216,7 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     
     const formattedHistory = (conversationHistory || []).map(item => ({
       role: item.role === 'model' ? 'model' : 'user',
@@ -260,91 +260,121 @@ app.post('/api/ai/chat', async (req, res) => {
 });
 
 // --------------------------------------------------
-// 4. HARDWARE CAPTURE & SECURITY VERIFICATION ROUTE
+// 4. AI FOOD VISION VERIFICATION ROUTE (Strict Structured JSON)
 // --------------------------------------------------
+
+// Helper: call Gemini vision with retry + model fallback for 503
+async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
+  const MODELS = ['gemini-3.5-flash', 'gemini-3.6-flash'];
+  const payload = {
+    contents: [{
+      parts: [
+        { text: promptText },
+        { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } }
+      ]
+    }],
+    generationConfig: { temperature: 0.2, maxOutputTokens: 400 }
+  };
+
+  for (const model of MODELS) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+      const aiRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (aiRes.ok) return aiRes;
+      const body = await aiRes.text();
+      if (aiRes.status === 503 && attempt < 3) {
+        console.warn(`Gemini ${model} 503 — retrying in 2s (attempt ${attempt}/3)...`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      if (aiRes.status === 503) {
+        console.warn(`Gemini ${model} still 503 after 3 attempts — trying next model`);
+        break; // try next model
+      }
+      // Any other non-OK status: log and give up for this model
+      console.warn(`Gemini ${model} non-OK ${aiRes.status}:`, body.substring(0, 200));
+      break;
+    }
+  }
+  return null; // all models failed
+}
+
 app.post('/api/ai/verify-food', async (req, res) => {
   const { imageBase64 } = req.body;
   if (!imageBase64) {
-    return res.status(400).json({ isFood: false, foodName: "No image provided" });
+    return res.status(400).json({ is_food: false, confidence: 0, reason: 'No image provided.' });
   }
 
-  // Fallback to mock verification if Gemini API key is not configured
-  const isKeyConfigured = GEMINI_API_KEY && 
-                          GEMINI_API_KEY !== 'YOUR_API_KEY_HERE' && 
+  const isKeyConfigured = GEMINI_API_KEY &&
+                          GEMINI_API_KEY !== 'YOUR_API_KEY_HERE' &&
                           !GEMINI_API_KEY.includes('your_gemini_api_key');
 
   if (!isKeyConfigured) {
-    console.warn('⚠️ [DEV WARNING] GEMINI_API_KEY is not configured. Falling back to default food verification (isFood: true).');
-    return res.json({
-      isFood: true,
-      foodName: "Live Hardware Camera Verified",
-      timestamp: new Date().toISOString()
-    });
+    console.warn('⚠️ GEMINI_API_KEY not configured — verification disabled.');
+    return res.json({ is_food: false, confidence: 0, reason: 'Could not verify — please retake or re-upload the photo.' });
   }
 
   try {
-    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
-    const promptText = "Analyze this image and determine strictly whether it shows real, edible food suitable for donation. " +
-      "Answer strictly with YES or NO as the very first word. " +
-      "If YES, follow with a brief 2-5 word description of the food item (e.g., 'YES, Cooked rice and curry'). " +
-      "If NO, follow with a short reason (e.g., 'NO, This is an electronic device').";
-
-    const payload = {
-      contents: [{
-        parts: [
-          { text: promptText },
-          {
-            inlineData: {
-              mimeType: 'image/jpeg',
-              data: cleanBase64
-            }
-          }
-        ]
-      }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 60
-      }
-    };
-
-    const aiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (aiRes.ok) {
-      const aiData = await aiRes.json();
-      const reply = aiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-
-      if (/^yes\b/i.test(reply)) {
-        const foodDesc = reply.replace(/^yes[,\s:-]*/i, '').trim() || 'Verified Edible Food';
-        return res.json({
-          isFood: true,
-          foodName: foodDesc,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        return res.json({
-          isFood: false,
-          foodName: 'Could not verify — please retake the photo'
-        });
-      }
-    } else {
-      console.warn('Gemini Vision API returned non-OK status:', aiRes.status);
-      return res.json({
-        isFood: false,
-        foodName: 'Could not verify — please retake the photo'
-      });
+    // Compress image to max 640px to reduce payload size (prevents 503 overload)
+    let cleanBase64 = rawBase64;
+    try {
+      const compressedBuf = await sharp(Buffer.from(rawBase64, 'base64'))
+        .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 75 })
+        .toBuffer();
+      cleanBase64 = compressedBuf.toString('base64');
+    } catch (compressErr) {
+      // If sharp fails (e.g. SVG/non-jpeg), use raw base64 as-is
+      console.warn('Image compression skipped:', compressErr.message);
     }
+
+    const promptText = `You are a strict food-safety image inspector. Analyze the attached image and respond with ONLY a valid JSON object, no other text, no markdown formatting, no backticks — just the raw JSON, in exactly this shape: {"is_food": true or false, "confidence": integer from 0 to 100, "reason": "one short sentence"} Rules: - is_food must be true ONLY if the image clearly shows real, physical, edible food (a cooked meal, raw ingredients, packaged food items, etc.) - is_food must be false for: people, objects, screenshots, text, empty plates or containers, drawings/cartoons, animals, vehicles, or anything that is not genuinely food - Be conservative: if you are not reasonably confident, set is_food to false and lower the confidence score accordingly`;
+
+    const aiRes = await callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY);
+
+    if (!aiRes) {
+      return res.json({ is_food: false, confidence: 0, reason: 'Could not verify — please retake or re-upload the photo.' });
+    }
+
+    const aiData = await aiRes.json();
+    let reply = aiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+
+    // Strip markdown code fences defensively
+    reply = reply.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(reply);
+    } catch (_) {
+      const m = reply.match(/\{[\s\S]*\}/);
+      if (m) { try { parsed = JSON.parse(m[0]); } catch (_2) {} }
+    }
+
+    if (!parsed) {
+      console.warn('Gemini returned non-JSON:', reply.substring(0, 200));
+      return res.json({ is_food: false, confidence: 0, reason: 'Could not verify — please retake or re-upload the photo.' });
+    }
+
+    const rawIsFood = parsed.is_food === true;
+    const confidence = typeof parsed.confidence === 'number'
+      ? Math.round(parsed.confidence)
+      : (parseInt(String(parsed.confidence), 10) || 0);
+    const reason = String(parsed.reason || (rawIsFood ? 'Verified edible food item.' : 'Image does not appear to show food.'));
+
+    // Verified ONLY if is_food === true AND confidence >= 60
+    const isVerified = rawIsFood && confidence >= 60;
+
+    return res.json({ is_food: isVerified, confidence, reason });
+
   } catch (err) {
-    console.warn('Gemini Vision API call failed:', err.message);
-    return res.json({
-      isFood: false,
-      foodName: 'Could not verify — please retake the photo'
-    });
+    console.warn('Gemini Vision call threw:', err.message);
+    return res.json({ is_food: false, confidence: 0, reason: 'Could not verify — please retake or re-upload the photo.' });
   }
 });
 

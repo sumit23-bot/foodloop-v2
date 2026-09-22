@@ -171,15 +171,17 @@
               <!-- Live Camera Proof Section -->
               <div class="form-group">
                 <div class="label-row">
-                  <label>📸 Live Camera Proof <span style="color: #f87171; font-weight: 800;">* (Live Webcam / Phone Cam Only)</span></label>
-                  <div class="proof-toggle-btns">
+                  <label>📸 Photo Proof <span style="color: #f87171; font-weight: 800;">* (Camera or Gallery)</span></label>
+                  <div class="proof-toggle-btns" style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <button type="button" onclick="startInAppCamera()" style="background: #10b981; color: #000; font-weight: 800; padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer;">📷 Open Live Camera</button>
+                    <button type="button" onclick="document.getElementById('gallery-file-input').click()" style="background: #3b82f6; color: #fff; font-weight: 800; padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer;">📁 Upload from Gallery</button>
+                    <input type="file" id="gallery-file-input" accept="image/*" style="display: none;" onchange="handleGalleryUpload(event)">
                   </div>
                 </div>
 
                 <div id="camera-box" style="border: 2px dashed #475569; border-radius: 12px; overflow: hidden; position: relative; background: #0b0f19; min-height: 180px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px;">
                   <div id="start-cam-placeholder">
-                    <span style="color: #cbd5e1; font-size: 13px;">Click <strong>"📷 Open Live Camera"</strong> to activate camera feed. Gallery uploads are disabled to prevent fake posts.</span>
+                    <span style="color: #cbd5e1; font-size: 13px;">Click <strong>"📷 Open Live Camera"</strong> to capture a live photo, or <strong>"📁 Upload from Gallery"</strong> to select an existing photo. All photos are AI-verified before submission.</span>
                   </div>
                   <video id="cam-video-stream" autoplay playsinline style="width: 100%; max-height: 280px; object-fit: cover; display: none; border-radius: 8px;"></video>
                   <div id="cam-controls" style="display: none; position: absolute; bottom: 12px; left: 0; right: 0; justify-content: center; gap: 10px; z-index: 10;">
@@ -188,11 +190,12 @@
                   </div>
                   <div id="image-preview-container" style="display: none; width: 100%; position: relative;">
                     <img id="food-image-preview" src="" alt="Proof" style="width: 100%; max-height: 240px; object-fit: cover; border-radius: 8px; display: block;" />
-                    <span id="verification-badge" style="position: absolute; bottom: 8px; left: 8px; background: rgba(16,185,129,0.95); color: #000; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 4px;">✅ Live Proof</span>
+                    <span id="verification-badge" style="display: none; position: absolute; bottom: 8px; left: 8px; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 4px;"></span>
                     <button type="button" class="remove-snap-btn" onclick="retakeSnap()" style="position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.8); color: #fff; border: 1px solid #475569; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">✕ Retake</button>
                   </div>
                 </div>
               </div>
+
 
               <div class="form-group">
                 <label>Food item</label>

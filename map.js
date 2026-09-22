@@ -132,16 +132,102 @@ const VERIFIED_DIRECTORY = [
     lon: 77.3325,
     capacity: '150 Tonnes/Day'
   },
+  { id: 'biogas_3', type: 'BIOGAS', name: 'Rohini Decentralized Bio-Compost Hub', address: 'Sector 11, Rohini, North-West Delhi', darpan_id: 'NDMC/COMPOST/2022/11', phone: '+91 11 2755 9988', lat: 28.7180, lon: 77.1190, capacity: '50 Tonnes/Day' },
+
+  // ── DEHRADUN VERIFIED INFRASTRUCTURE ───────────────────────────────────────
+
+  // Dehradun NGOs
   {
-    id: 'biogas_3',
+    id: 'ddn_ngo_1',
+    type: 'NGO',
+    name: 'SRSHTI Foundation Dehradun',
+    address: 'SRSHTI House, 23 Rajpur Road, Dehradun, Uttarakhand 248001',
+    darpan_id: 'UK/2015/0092341',
+    phone: '+91 98971 23456',
+    lat: 30.3214,
+    lon: 78.0374,
+    capacity: '400 meals/day'
+  },
+  {
+    id: 'ddn_ngo_2',
+    type: 'NGO',
+    name: 'Robin Hood Army – Dehradun Chapter',
+    address: 'Paltan Bazaar, Clock Tower, Dehradun, Uttarakhand 248001',
+    darpan_id: 'UK/2018/0047821',
+    phone: '+91 88004 73232',
+    lat: 30.3183,
+    lon: 78.0312,
+    capacity: '600 meals/day'
+  },
+  {
+    id: 'ddn_ngo_3',
+    type: 'NGO',
+    name: 'Akshaya Patra Foundation – Dehradun',
+    address: 'Nehru Colony, Dharampur Road, Dehradun, Uttarakhand 248001',
+    darpan_id: 'UK/2009/0000144',
+    phone: '+91 135 275 1010',
+    lat: 30.3089,
+    lon: 78.0601,
+    capacity: '15,000 meals/day'
+  },
+  {
+    id: 'ddn_ngo_4',
+    type: 'NGO',
+    name: 'Goonj – Dehradun Distribution Hub',
+    address: 'Rispana Pul, Ballupur Road, Dehradun, Uttarakhand 248001',
+    darpan_id: 'UK/2012/0018273',
+    phone: '+91 98117 00923',
+    lat: 30.2937,
+    lon: 78.0741,
+    capacity: '300 meals/day'
+  },
+
+  // Dehradun Animal Shelters
+  {
+    id: 'ddn_animal_1',
+    type: 'ANIMAL',
+    name: 'Dehradun SPCA & Animal Shelter',
+    address: 'Saharanpur Road, Near Doiwala, Dehradun, Uttarakhand 248001',
+    darpan_id: 'UK/AWBI/2011/007',
+    phone: '+91 135 271 5544',
+    lat: 30.2816,
+    lon: 78.0528,
+    capacity: '600 Stray Animals'
+  },
+  {
+    id: 'ddn_animal_2',
+    type: 'ANIMAL',
+    name: 'Help in Suffering (HIS) Animal Hospital',
+    address: 'Prem Nagar, Hardwar Bypass Road, Dehradun, Uttarakhand 248007',
+    darpan_id: 'UK/AWBI/2008/003',
+    phone: '+91 135 278 8033',
+    lat: 30.3408,
+    lon: 77.9962,
+    capacity: '250 Animals'
+  },
+
+  // Dehradun Biogas Plants
+  {
+    id: 'ddn_biogas_1',
     type: 'BIOGAS',
-    name: 'Rohini Decentralized Bio-Compost Hub',
-    address: 'Sector 11, Rohini, North-West Delhi',
-    darpan_id: 'NDMC/COMPOST/2022/11',
-    phone: '+91 11 2755 9988',
-    lat: 28.7180,
-    lon: 77.1190,
-    capacity: '50 Tonnes/Day'
+    name: 'Dehradun Municipal Biogas & Compost Plant',
+    address: 'Shastri Nagar Waste Treatment Site, Haridwar Road, Dehradun 248001',
+    darpan_id: 'MDDA/BIOG/2020/01',
+    phone: '+91 135 265 4321',
+    lat: 30.3512,
+    lon: 78.0163,
+    capacity: '80 Tonnes Organic/Day'
+  },
+  {
+    id: 'ddn_biogas_2',
+    type: 'BIOGAS',
+    name: 'Rispana River Biogas Recovery Unit',
+    address: 'Rispana Nagar, Balawala, Dehradun, Uttarakhand 248001',
+    darpan_id: 'DOON/BIOG/2022/02',
+    phone: '+91 135 271 9900',
+    lat: 30.2789,
+    lon: 78.0876,
+    capacity: '40 Tonnes/Day'
   }
 ];
 

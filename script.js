@@ -259,7 +259,100 @@ window.retakeSnap = function() {
 
   const placeholder = document.getElementById('start-cam-placeholder');
   if (placeholder) placeholder.style.display = 'block';
+
+  // Reset gallery file input so same file can be re-selected
+  const galleryInput = document.getElementById('gallery-file-input');
+  if (galleryInput) galleryInput.value = '';
 };
+
+// ─── Gallery Upload Handler ───────────────────────────────────────────────────
+window.handleGalleryUpload = function(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    alert('❌ Please select an image file (JPEG, PNG, etc.)');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    uploadedImageBase64 = e.target.result; // data:image/...;base64,...
+    isLiveCameraCapture = false;
+
+    const previewContainer = document.getElementById('image-preview-container');
+    const previewImg = document.getElementById('food-image-preview');
+    const badge = document.getElementById('verification-badge');
+    const placeholder = document.getElementById('start-cam-placeholder');
+
+    if (placeholder) placeholder.style.display = 'none';
+
+    if (previewImg && previewContainer) {
+      previewImg.src = uploadedImageBase64;
+      previewContainer.style.display = 'block';
+      previewContainer.style.position = 'relative';
+
+      // Remove old security stamp
+      let securityStamp = document.getElementById('hardware-security-stamp');
+      if (securityStamp) securityStamp.remove();
+
+      // Geotagging overlay for gallery uploads
+      securityStamp = document.createElement('div');
+      securityStamp.id = 'hardware-security-stamp';
+      securityStamp.style.cssText = `
+        position: absolute !important;
+        bottom: 12px !important;
+        left: 12px !important;
+        right: 12px !important;
+        background: rgba(15, 23, 42, 0.94) !important;
+        border-left: 4px solid #f59e0b !important;
+        border-radius: 6px !important;
+        padding: 6px 12px !important;
+        color: #ffffff !important;
+        font-family: monospace !important;
+        font-size: 11px !important;
+        line-height: 1.4 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7) !important;
+        z-index: 99 !important;
+        pointer-events: none !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        flex-wrap: wrap !important;
+      `;
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const coordsStr = userLiveCoords
+        ? `${userLiveCoords.lat.toFixed(4)}°N, ${userLiveCoords.lon.toFixed(4)}°E`
+        : 'Location Unavailable';
+
+      securityStamp.innerHTML = `
+        <div style="font-weight: bold; color: #f59e0b;">📁 Gallery Upload</div>
+        <div style="color: #ffffff;">📅 Uploaded: ${dateStr} ${timeStr}</div>
+        <div style="color: #94a3b8;">📍 Current GPS: ${coordsStr}</div>
+      `;
+
+      previewContainer.appendChild(securityStamp);
+    }
+
+    // Show loading badge while AI verifies
+    if (badge) {
+      badge.style.display = 'inline-block';
+      badge.style.background = 'rgba(100, 116, 139, 0.95)';
+      badge.style.color = '#fff';
+      badge.textContent = '⏳ Verifying with AI...';
+    }
+    isFoodValid = false;
+    detectedAIClass = 'Pending AI Verification';
+
+    // Run the same AI verification pipeline
+    runAIFoodVerification(uploadedImageBase64, badge);
+  };
+  reader.readAsDataURL(file);
+};
+
 
 window.captureLiveSnap = function() {
   const video = document.getElementById('cam-video-stream');
@@ -344,7 +437,6 @@ function drawAndDisplaySnap(video) {
   const placeholder = document.getElementById('start-cam-placeholder');
 
   if (placeholder) placeholder.style.display = 'none';
-  if (badge) badge.style.display = 'none';
 
   if (previewImg && previewContainer) {
     previewImg.src = uploadedImageBase64;
@@ -378,13 +470,6 @@ function drawAndDisplaySnap(video) {
       flex-wrap: wrap !important;
     `;
 
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const coordsStr = userLiveCoords 
-      ? `${userLiveCoords.lat.toFixed(4)}°N, ${userLiveCoords.lon.toFixed(4)}°E` 
-      : 'Location Unavailable';
-
     securityStamp.innerHTML = `
       <div style="font-weight: bold; color: #34d399;">🛡️ FoodLoop Verified Live Proof</div>
       <div style="color: #ffffff;">📅 ${dateStr} ${timeStr}</div>
@@ -392,11 +477,71 @@ function drawAndDisplaySnap(video) {
     `;
 
     previewContainer.appendChild(securityStamp);
+  }
 
-    isFoodValid = true;
-    detectedAIClass = 'Live Camera Geotagged Proof';
+  // Show loading badge while AI verifies
+  if (badge) {
+    badge.style.display = 'inline-block';
+    badge.style.background = 'rgba(100, 116, 139, 0.95)';
+    badge.style.color = '#fff';
+    badge.textContent = '⏳ Verifying with AI...';
+  }
+  isFoodValid = false;
+  detectedAIClass = 'Pending AI Verification';
+
+  // Call AI verification endpoint
+  runAIFoodVerification(uploadedImageBase64, badge);
+}
+
+// ─── AI Food Verification Helper ─────────────────────────────────────────────
+async function runAIFoodVerification(imageBase64, badge) {
+  try {
+    const response = await fetch(AI_VISION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64 })
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+    const isVerified = data.is_food === true;
+    const confidence = data.confidence ?? 0;
+    const reason = data.reason || '';
+
+    if (isVerified) {
+      isFoodValid = true;
+      detectedAIClass = reason || 'AI Verified Food';
+      if (badge) {
+        badge.style.display = 'inline-block';
+        badge.style.background = 'rgba(16,185,129,0.95)';
+        badge.style.color = '#000';
+        badge.textContent = `✅ Food Verified (${confidence}%)`;
+      }
+    } else {
+      isFoodValid = false;
+      detectedAIClass = 'Not verified as food';
+      if (badge) {
+        badge.style.display = 'inline-block';
+        badge.style.background = 'rgba(239,68,68,0.95)';
+        badge.style.color = '#fff';
+        badge.textContent = `❌ Not Food${reason ? ' — ' + reason : ''} — Retake`;
+      }
+    }
+  } catch (err) {
+    console.warn('AI verification error:', err.message);
+    // On network/server error: do NOT silently approve — leave as rejected
+    isFoodValid = false;
+    detectedAIClass = 'Verification failed';
+    if (badge) {
+      badge.style.display = 'inline-block';
+      badge.style.background = 'rgba(234,179,8,0.95)';
+      badge.style.color = '#000';
+      badge.textContent = '⚠️ Verification failed — Retake or try again';
+    }
   }
 }
+
 
 window.openDisputeModal = function(listingId, listingLat, listingLon) {
   if (!currentUser || (currentUser.role !== 'NGO' && currentUser.role !== 'ANIMAL_SHELTER')) {
@@ -1456,12 +1601,29 @@ window.submitDonationNow = function() {
   }
 
   if (!uploadedImageBase64 || uploadedImageBase64.trim() === '') {
-    alert('❌ Live Camera Proof is Mandatory!\n\nPlease click "📷 Open Live Camera" to capture authentic real-time food proof.');
+    alert('❌ Photo Required!\n\nPlease capture a live photo or upload from gallery before submitting.');
     const camBox = document.getElementById('camera-box');
     if (camBox) {
       camBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
       camBox.style.borderColor = '#ef4444';
       setTimeout(() => { camBox.style.borderColor = '#475569'; }, 2500);
+    }
+    return;
+  }
+
+  if (!isFoodValid) {
+    const badge = document.getElementById('verification-badge');
+    const badgeText = badge ? badge.textContent : '';
+    if (badgeText.includes('⏳')) {
+      alert('⏳ AI Verification in Progress\n\nPlease wait a moment — the AI is still checking your photo.\n\nTry submitting again in a few seconds.');
+    } else {
+      alert('❌ Food Not Verified\n\nThe AI could not confirm this photo shows real food suitable for donation.\n\nPlease retake the photo with the food clearly visible, or upload a clear gallery photo.');
+      const camBox = document.getElementById('camera-box');
+      if (camBox) {
+        camBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        camBox.style.borderColor = '#ef4444';
+        setTimeout(() => { camBox.style.borderColor = '#475569'; }, 2500);
+      }
     }
     return;
   }
@@ -1519,8 +1681,8 @@ window.submitDonationNow = function() {
     verification_code: 'HW-AUTHENTICATED',
     coords: selectedAddressCoords || userLiveCoords || { lat: 28.6139, lon: 77.2090 },
     is_food_verified: true,
-    is_live_capture: true,
-    ai_detected_class: 'Live Camera Geotagged Proof',
+    is_live_capture: isLiveCameraCapture,
+    ai_detected_class: detectedAIClass || 'AI Verified Food',
     trust_score: 100,
     created_at: new Date().toISOString(),
     status: (selectedHours === 1) ? 'DIVERTED_TO_ANIMALS' : 'AVAILABLE'
@@ -1537,6 +1699,7 @@ window.submitDonationNow = function() {
     if (input) { input.value = ''; input.focus(); }
   }
 };
+
 
 window.confirmOTPVerification = async function() {
   const otpInput = document.getElementById('otp-input-field');
