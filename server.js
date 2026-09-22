@@ -21,6 +21,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const sharp = require('sharp');
@@ -62,8 +63,13 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Serve frontend assets directly through Node server
-app.use(express.static(__dirname));
+// Serve React build from client/dist if available, else fallback to root directory
+const clientDistPath = path.join(__dirname, 'client', 'dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+} else {
+  app.use(express.static(__dirname));
+}
 
 // --------------------------------------------------
 // 1. LIVE GOOGLE GEMINI AI CONFIGURATION
@@ -784,9 +790,18 @@ app.delete('/api/donations/purge-all', requireAuth, async (req, res) => {
   }
 });
 
-// Root Route - Serve index.html directly
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+// Root and SPA Catch-All Route: Serve React App if built, else fallback to vanilla index.html
+app.use((req, res) => {
+  // If an API request reaches here, return 404 JSON instead of index.html
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Endpoint not found' });
+  }
+  const clientIndex = path.join(__dirname, 'client', 'dist', 'index.html');
+  if (fs.existsSync(clientIndex)) {
+    res.sendFile(clientIndex);
+  } else {
+    res.sendFile(path.join(__dirname, 'index.html'));
+  }
 });
 
 // --------------------------------------------------
