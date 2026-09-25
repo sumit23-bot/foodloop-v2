@@ -376,6 +376,7 @@ export default function App() {
                     currentTab={currentPortalTab}
                     onTabChange={setCurrentPortalTab}
                     currentUser={currentUser}
+                    userCoords={userLiveCoords}
                     onClaim={handleClaim}
                     onOpenDispute={handleOpenDispute}
                     onOpenQR={(item) => setActiveQRListing(item)}

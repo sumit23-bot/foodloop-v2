@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
-import { VERIFIED_NGO_REGISTRY } from '../data/directory';
+import { VERIFIED_NGO_REGISTRY, calculateDistance } from '../data/directory';
 
 // ─── 1. Auth Modal ─────────────────────────────────────────────────────────────
 export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
@@ -501,6 +501,14 @@ export function DisputeModal({ isOpen, onClose, listing, userCoords, onSubmitDis
 
   if (!isOpen || !listing) return null;
 
+  const itemLat = listing.coords?.lat ?? 28.6139;
+  const itemLon = listing.coords?.lon ?? 77.2090;
+  const userLat = userCoords?.lat ?? 28.6139;
+  const userLon = userCoords?.lon ?? 77.2090;
+  const distKm = calculateDistance(userLat, userLon, itemLat, itemLon);
+  const distMeters = Math.round(distKm * 1000);
+  const isGeofenceValid = distKm <= 0.3; // 300m limit
+
   const startCam = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -537,6 +545,10 @@ export function DisputeModal({ isOpen, onClose, listing, userCoords, onSubmitDis
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!isGeofenceValid) {
+      alert(`Geofence Lock: You are ${distMeters}m away from pickup site. Submissions require physical presence within 300m.`);
+      return;
+    }
     onSubmitDispute({
       listingId: listing.id,
       reason,
@@ -555,10 +567,52 @@ export function DisputeModal({ isOpen, onClose, listing, userCoords, onSubmitDis
           </h3>
           <button type="button" className="close-x-btn" onClick={() => { stopCam(); onClose(); }}>✕</button>
         </div>
-        
-        <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 12px', borderRadius: '8px', fontSize: '11px', color: '#fca5a5', marginBottom: '14px', lineHeight: 1.5 }}>
-          <strong>⚠️ Anti-Griefing Security:</strong> You must be within <strong>300m</strong> of the physical pickup site. Your NGO Darpan signature and live photo evidence will be immutably recorded.
+
+        {/* Live Distance Geofence Badge */}
+        <div style={{
+          background: isGeofenceValid ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+          border: `1px solid ${isGeofenceValid ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+          padding: '8px 12px',
+          borderRadius: '8px',
+          fontSize: '12px',
+          color: isGeofenceValid ? '#34d399' : '#f87171',
+          marginBottom: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontWeight: 700
+        }}>
+          <span>📍 Your Distance: {distMeters}m / 300m limit</span>
+          <span style={{
+            background: isGeofenceValid ? '#064e3b' : '#7f1d1d',
+            color: isGeofenceValid ? '#6ee7b7' : '#fca5a5',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontWeight: 800
+          }}>
+            {isGeofenceValid ? '[✓ Geofence Verified]' : '[⚠️ Too Far (>300m)]'}
+          </span>
         </div>
+
+        {!isGeofenceValid ? (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid #ef4444',
+            padding: '10px 12px',
+            borderRadius: '8px',
+            fontSize: '11px',
+            color: '#fca5a5',
+            marginBottom: '14px',
+            lineHeight: 1.4
+          }}>
+            <strong>🚫 Geofence Lock Active:</strong> You are currently <strong>{distMeters}m</strong> away. You must be physically present at the pickup site (within 300m) to submit an incident report.
+          </div>
+        ) : (
+          <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 12px', borderRadius: '8px', fontSize: '11px', color: '#fca5a5', marginBottom: '14px', lineHeight: 1.5 }}>
+            <strong>⚠️ Anti-Griefing Security:</strong> You are within the <strong>300m</strong> geofence of this pickup site. Your NGO Darpan signature and live photo evidence will be immutably recorded.
+          </div>
+        )}
 
         <form id="dispute-form" onSubmit={handleSubmit}>
           <div className="form-group" style={{ marginBottom: '10px' }}>
@@ -614,8 +668,24 @@ export function DisputeModal({ isOpen, onClose, listing, userCoords, onSubmitDis
             <button type="button" onClick={() => { stopCam(); onClose(); }} style={{ flex: 1, padding: '10px', background: '#334155', color: '#cbd5e1', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>
               Cancel
             </button>
-            <button type="submit" id="btn-submit-dispute" style={{ flex: 1, padding: '10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}>
-              Sign & Submit Strike
+            <button 
+              type="submit" 
+              id="btn-submit-dispute" 
+              disabled={!isGeofenceValid}
+              style={{ 
+                flex: 1, 
+                padding: '10px', 
+                background: isGeofenceValid ? '#ef4444' : '#475569', 
+                color: isGeofenceValid ? '#fff' : '#94a3b8', 
+                border: 'none', 
+                borderRadius: '8px', 
+                fontWeight: 800, 
+                fontSize: '12px', 
+                cursor: isGeofenceValid ? 'pointer' : 'not-allowed',
+                opacity: isGeofenceValid ? 1 : 0.6
+              }}
+            >
+              {isGeofenceValid ? 'Sign & Submit Strike' : 'Submit Locked (>300m)'}
             </button>
           </div>
         </form>

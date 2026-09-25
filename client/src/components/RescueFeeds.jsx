@@ -1,10 +1,12 @@
 import React from 'react';
+import { calculateDistance } from '../data/directory';
 
 export default function RescueFeeds({ 
   listings = [], 
   currentTab = 'HUMAN', 
   onTabChange, 
   currentUser, 
+  userCoords,
   onClaim, 
   onOpenDispute, 
   onOpenQR, 
@@ -76,6 +78,13 @@ export default function RescueFeeds({
                 (currentUser.phone && item.phone && currentUser.phone === item.phone)
               )
             );
+
+            const itemLat = item.coords?.lat ?? 28.6139;
+            const itemLon = item.coords?.lon ?? 77.2090;
+            const userLat = userCoords?.lat ?? 28.6139;
+            const userLon = userCoords?.lon ?? 77.2090;
+            const distKm = calculateDistance(userLat, userLon, itemLat, itemLon);
+            const isNearby = distKm <= 0.3; // 300m limit
 
             return (
               <article key={item.id} className="feed-card" style={{
@@ -197,6 +206,7 @@ export default function RescueFeeds({
                         <button 
                           type="button" 
                           onClick={() => onOpenDispute(item)} 
+                          disabled={!isNearby}
                           style={{
                             background: 'transparent',
                             color: '#f87171',
@@ -205,9 +215,14 @@ export default function RescueFeeds({
                             fontWeight: 700,
                             padding: '6px 10px',
                             borderRadius: '6px',
-                            cursor: 'pointer'
+                            cursor: isNearby ? 'pointer' : 'not-allowed',
+                            opacity: isNearby ? 1 : 0.45
                           }}
-                          title="Report dispute if physical food is missing or spoiled (within 300m)"
+                          title={
+                            isNearby
+                              ? "Report dispute (within 300m)"
+                              : `Must be at pickup site to dispute (${(distKm * 1000).toFixed(0)}m away, limit 300m)`
+                          }
                         >
                           🚩 Dispute
                         </button>
