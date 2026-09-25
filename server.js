@@ -271,7 +271,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
 // Helper: call Gemini vision with retry + model fallback for 503
 async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
-  const MODELS = ['gemini-3.5-flash', 'gemini-3.6-flash'];
+  const MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash'];
   const payload = {
     contents: [{
       parts: [
