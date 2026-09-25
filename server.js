@@ -222,7 +222,7 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
     
     const formattedHistory = (conversationHistory || []).map(item => ({
       role: item.role === 'model' ? 'model' : 'user',
@@ -271,7 +271,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
 // Helper: call Gemini vision with retry + model fallback for 503
 async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
-  const MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+  const MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash'];
   const payload = {
     contents: [{
       parts: [
@@ -835,6 +835,10 @@ app.listen(PORT, () => {
   console.log(`====================================================`);
   console.log(`🚀 FoodLoop Master Server running on http://localhost:${PORT}`);
   console.log(`🛡️ Hardware Geotag & Anti-Fraud Security: ACTIVE`);
-  console.log(`🤖 Gemini AI Assistant: ${GEMINI_API_KEY && GEMINI_API_KEY !== 'YOUR_API_KEY_HERE' ? 'CONFIGURED (Cloud)' : 'LOCAL FALLBACK (Add GEMINI_API_KEY in .env)'}`);
+  if (GEMINI_API_KEY && GEMINI_API_KEY.startsWith('AIzaSy')) {
+    console.log(`✅ Gemini API key format looks valid (Cloud Assistant ACTIVE)`);
+  } else {
+    console.warn(`⚠️ GEMINI_API_KEY missing or wrong format (current value does not start with AIzaSy) — AI features will fall back to defaults`);
+  }
   console.log(`====================================================`);
 });
