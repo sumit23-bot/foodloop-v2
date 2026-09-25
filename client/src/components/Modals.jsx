@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { VERIFIED_NGO_REGISTRY, calculateDistance } from '../data/directory';
+import { generate80GCertificate } from '../utils/certificate';
 
 // ─── 1. Auth Modal ─────────────────────────────────────────────────────────────
 export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
@@ -747,6 +748,49 @@ export function ImpactDashboardModal({ isOpen, onClose, currentUser, history = [
               ))
             )}
           </div>
+        </div>
+
+        {/* Action Buttons: 80G Certificate */}
+        <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
+          <button 
+            type="button" 
+            id="download-80g-btn"
+            onClick={() => generate80GCertificate(currentUser, history)}
+            style={{
+              flex: 1,
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              color: '#000',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              fontSize: '13px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+            }}
+          >
+            <span>📄</span> Download 80G Certificate (PDF)
+          </button>
+          <button 
+            type="button" 
+            onClick={onClose}
+            style={{
+              background: '#334155',
+              color: '#cbd5e1',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '12px 18px',
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>
