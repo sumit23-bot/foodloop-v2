@@ -193,6 +193,59 @@ export default function DonorForm({
     setIsCameraActive(false);
   };
 
+  const stampWatermarkOnImage = (imageSrc, coords) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width || 640;
+        canvas.height = img.height || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        const coordsStr = coords 
+          ? `${coords.lat.toFixed(4)}°N, ${coords.lon.toFixed(4)}°E` 
+          : 'Location Unavailable';
+
+        const fontSize = Math.max(12, Math.floor(canvas.width * 0.024));
+        const padding = Math.floor(fontSize * 0.8);
+        const boxHeight = fontSize * 3.8;
+        const boxWidth = Math.min(canvas.width - 24, Math.max(300, canvas.width * 0.58));
+        const boxX = 12;
+        const boxY = canvas.height - boxHeight - 12;
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        if (typeof ctx.roundRect === 'function') {
+          ctx.beginPath();
+          ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
+          ctx.fill();
+        } else {
+          ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+        }
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(boxX, boxY, 4, boxHeight);
+
+        ctx.font = `bold ${fontSize}px "Courier New", Courier, monospace`;
+        ctx.fillStyle = '#34d399';
+        ctx.fillText('🛡️ FoodLoop Verified Live Proof', boxX + padding + 4, boxY + fontSize * 1.2);
+
+        ctx.font = `${Math.floor(fontSize * 0.88)}px "Courier New", Courier, monospace`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`📅 ${dateStr} ${timeStr}`, boxX + padding + 4, boxY + fontSize * 2.3);
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText(`📍 GPS: ${coordsStr}`, boxX + padding + 4, boxY + fontSize * 3.3);
+
+        resolve(canvas.toDataURL('image/jpeg', 0.90));
+      };
+      img.onerror = () => resolve(imageSrc);
+      img.src = imageSrc;
+    });
+  };
+
   const capturePhoto = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
@@ -201,45 +254,6 @@ export default function DonorForm({
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Burn Geotag / Timestamp into canvas pixels
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const coordsStr = userLiveCoords 
-      ? `${userLiveCoords.lat.toFixed(4)}°N, ${userLiveCoords.lon.toFixed(4)}°E` 
-      : 'Location Unavailable';
-
-    const fontSize = Math.max(12, Math.floor(canvas.width * 0.024));
-    const padding = Math.floor(fontSize * 0.8);
-    const boxHeight = fontSize * 4.4;
-    const boxWidth = Math.min(canvas.width - 24, Math.max(300, canvas.width * 0.58));
-    const boxX = 12;
-    const boxY = canvas.height - boxHeight - 12;
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
-    if (typeof ctx.roundRect === 'function') {
-      ctx.beginPath();
-      ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
-      ctx.fill();
-    } else {
-      ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-    }
-    ctx.fillStyle = '#10b981';
-    ctx.fillRect(boxX, boxY, 4, boxHeight);
-
-    ctx.font = `bold ${fontSize}px "Courier New", Courier, monospace`;
-    ctx.fillStyle = '#34d399';
-    ctx.fillText('🛡️ FoodLoop Verified Live Proof', boxX + padding + 4, boxY + fontSize * 1.3);
-
-    ctx.font = `${Math.floor(fontSize * 0.9)}px "Courier New", Courier, monospace`;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(`📅 ${dateStr} ${timeStr}`, boxX + padding + 4, boxY + fontSize * 2.5);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText(`📍 GPS: ${coordsStr}`, boxX + padding + 4, boxY + fontSize * 3.6);
-    ctx.restore();
 
     const base64 = canvas.toDataURL('image/jpeg', 0.90);
     stopCamera();
@@ -300,7 +314,7 @@ export default function DonorForm({
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!currentUser) {
@@ -346,6 +360,16 @@ export default function DonorForm({
       return;
     }
 
+    const effectiveCoords = customCoords || userLiveCoords || { lat: 28.6139, lon: 77.2090 };
+    let finalImage = imagePreview;
+    if (isLiveCapture && imagePreview) {
+      try {
+        finalImage = await stampWatermarkOnImage(imagePreview, effectiveCoords);
+      } catch (err) {
+        console.warn('Watermark stamp error:', err);
+      }
+    }
+
     const payload = {
       id: Date.now().toString(),
       title: title.trim(),
@@ -355,9 +379,9 @@ export default function DonorForm({
       address: address.trim(),
       phone: cleanPhone,
       donor_name: currentUser.name || currentUser.organization || 'Registered Donor',
-      image: imagePreview,
+      image: finalImage,
       verification_code: 'HW-AUTHENTICATED',
-      coords: customCoords || userLiveCoords || { lat: 28.6139, lon: 77.2090 },
+      coords: effectiveCoords,
       is_food_verified: true,
       is_live_capture: isLiveCapture,
       ai_detected_class: aiState.reason || 'AI Verified Food',
@@ -482,65 +506,210 @@ export default function DonorForm({
                   id="food-image-preview" 
                   src={imagePreview} 
                   alt="Proof" 
-                  style={{ width: '100%', maxHeight: '240px', objectFit: 'cover', borderRadius: '8px', display: 'block' }} 
+                  style={{ width: '100%', maxHeight: '280px', objectFit: 'cover', borderRadius: '8px', display: 'block' }} 
                 />
 
-                {/* Hardware Security / Geotag Stamp Overlay */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: '12px',
-                  left: '12px',
-                  right: '12px',
-                  background: 'rgba(15, 23, 42, 0.94)',
-                  borderLeft: isLiveCapture ? '4px solid #10b981' : '4px solid #f59e0b',
-                  borderRadius: '6px',
-                  padding: '6px 12px',
-                  color: '#ffffff',
-                  fontFamily: 'monospace',
-                  fontSize: '11px',
-                  lineHeight: '1.4',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.7)',
-                  zIndex: 99,
-                  pointerEvents: 'none',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap'
-                }}>
-                  <div style={{ fontWeight: 'bold', color: isLiveCapture ? '#34d399' : '#f59e0b' }}>
-                    {isLiveCapture ? '🛡️ FoodLoop Verified Live Proof' : '📁 Gallery Upload'}
-                  </div>
-                  <div>📅 {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                  <div style={{ color: '#94a3b8' }}>
-                    📍 {userLiveCoords ? `${userLiveCoords.lat.toFixed(4)}°N, ${userLiveCoords.lon.toFixed(4)}°E` : 'Location Unavailable'}
-                  </div>
-                </div>
-
-                {/* AI Verification Badge */}
+                {/* Top-Left AI Status Pill */}
                 {aiState.status === 'LOADING' && (
-                  <span style={{ position: 'absolute', bottom: '8px', left: '8px', background: 'rgba(100, 116, 139, 0.95)', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '4px', zIndex: 100 }}>
-                    ⏳ Verifying with AI...
+                  <span style={{
+                    position: 'absolute',
+                    top: '10px',
+                    left: '10px',
+                    background: 'rgba(15, 23, 42, 0.90)',
+                    color: '#38bdf8',
+                    border: '1px solid rgba(56, 189, 248, 0.5)',
+                    backdropFilter: 'blur(6px)',
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    zIndex: 100,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
+                  }}>
+                    <i className="fa-solid fa-spinner fa-spin"></i> Verifying with AI...
                   </span>
                 )}
                 {aiState.status === 'VERIFIED' && (
-                  <span style={{ position: 'absolute', bottom: '8px', left: '8px', background: 'rgba(16,185,129,0.95)', color: '#000', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '4px', zIndex: 100 }}>
-                    ✅ Food Verified ({aiState.confidence}%)
+                  <span style={{
+                    position: 'absolute',
+                    top: '10px',
+                    left: '10px',
+                    background: '#10b981',
+                    color: '#022c22',
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    zIndex: 100,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
+                  }}>
+                    <i className="fa-solid fa-circle-check"></i> Food Verified ({aiState.confidence}%)
                   </span>
                 )}
                 {aiState.status === 'REJECTED' && (
-                  <span style={{ position: 'absolute', bottom: '8px', left: '8px', background: 'rgba(239,68,68,0.95)', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '4px', zIndex: 100 }}>
-                    ❌ Not Food — {aiState.reason} (Retake)
+                  <span style={{
+                    position: 'absolute',
+                    top: '10px',
+                    left: '10px',
+                    background: '#ef4444',
+                    color: '#ffffff',
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    zIndex: 100,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
+                  }}>
+                    <i className="fa-solid fa-circle-xmark"></i> Not Food Detected
                   </span>
                 )}
 
+                {/* Top-Right Retake Button */}
                 <button 
                   type="button" 
                   className="remove-snap-btn" 
                   onClick={retakePhoto} 
-                  style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.8)', color: '#fff', border: '1px solid #475569', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', zIndex: 100 }}
+                  style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '10px',
+                    background: 'rgba(15, 23, 42, 0.85)',
+                    color: '#fff',
+                    border: '1px solid #475569',
+                    backdropFilter: 'blur(6px)',
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    zIndex: 100,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
+                  }}
                 >
-                  ✕ Retake
+                  <i className="fa-solid fa-camera-rotate"></i> Retake
                 </button>
+
+                {/* Hardware Security / Geotag Stamp Overlay at Bottom */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: '10px',
+                  left: '10px',
+                  right: '10px',
+                  background: 'rgba(15, 23, 42, 0.94)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderLeft: isLiveCapture ? '4px solid #10b981' : '4px solid #f59e0b',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  color: '#ffffff',
+                  fontFamily: 'monospace',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.7)',
+                  zIndex: 90,
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontWeight: 800, color: isLiveCapture ? '#34d399' : '#f59e0b', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <i className={isLiveCapture ? "fa-solid fa-shield-halved" : "fa-solid fa-folder-open"}></i>
+                      {isLiveCapture ? 'FoodLoop Verified Live Proof' : '📁 Gallery Upload'}
+                    </span>
+                    <span style={{ color: '#cbd5e1', fontSize: '10px', fontWeight: 600 }}>
+                      📅 {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+                  <div style={{
+                    color: '#38bdf8',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(56, 189, 248, 0.08)',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    width: 'fit-content'
+                  }}>
+                    <i className="fa-solid fa-location-crosshairs" style={{ color: '#ef4444', fontSize: '12px' }}></i>
+                    <span>GPS: {userLiveCoords ? `${userLiveCoords.lat.toFixed(4)}°N, ${userLiveCoords.lon.toFixed(4)}°E` : 'Location Unavailable'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* AI Verification Detailed Alerts — Rendered below the photo to prevent overlap */}
+            {imagePreview && aiState.status === 'REJECTED' && (
+              <div style={{
+                marginTop: '10px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '12px',
+                color: '#fca5a5'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <i className="fa-solid fa-triangle-exclamation" style={{ color: '#ef4444', fontSize: '16px', marginTop: '2px' }}></i>
+                  <div style={{ fontSize: '12px', lineHeight: 1.4 }}>
+                    <strong style={{ color: '#f87171' }}>Verification Rejected: </strong>
+                    <span>{aiState.reason || 'Image does not clearly show edible surplus food.'}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={retakePhoto}
+                  style={{
+                    background: '#ef4444',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <i className="fa-solid fa-rotate-left"></i> Retake
+                </button>
+              </div>
+            )}
+
+            {imagePreview && aiState.status === 'VERIFIED' && (
+              <div style={{
+                marginTop: '8px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '12px',
+                color: '#34d399'
+              }}>
+                <i className="fa-solid fa-circle-check" style={{ color: '#10b981' }}></i>
+                <span><strong>AI Food Verification Passed:</strong> Edible surplus food detected ({aiState.confidence}% confidence).</span>
               </div>
             )}
           </div>
