@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 export default function DonorForm({ 
   currentUser, 
@@ -20,9 +20,141 @@ export default function DonorForm({
   const [isLiveCapture, setIsLiveCapture] = useState(false);
   const [aiState, setAiState] = useState({ status: 'IDLE', confidence: 0, reason: '' }); // IDLE, LOADING, VERIFIED, REJECTED
   
+  // Geolocation & Autocomplete State
+  const [customCoords, setCustomCoords] = useState(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const fileInputRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
+
+  // Close suggestions dropdown on outside click or Escape key
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // Fast GPS Auto-Locate with Nominatim Reverse-Geocoding
+  const handleGPSAutoLocate = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setGpsLoading(true);
+
+    const geoOptions = {
+      enableHighAccuracy: true,
+      timeout: 5000,
+      maximumAge: 10000
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        setCustomCoords({ lat, lon });
+
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`, {
+            headers: {
+              'Accept-Language': 'en'
+            }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const formatted = data.display_name || `GPS: ${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`;
+            setAddress(formatted);
+            const shortName = data.address?.suburb || data.address?.neighbourhood || data.address?.road || data.address?.city || 'Your current location';
+            if (showToast) showToast(`📍 Location detected: ${shortName}`);
+          } else {
+            setAddress(`GPS: ${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`);
+            if (showToast) showToast(`📍 GPS coordinates acquired`);
+          }
+        } catch (err) {
+          setAddress(`GPS: ${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`);
+          if (showToast) showToast(`📍 GPS coordinates acquired`);
+        } finally {
+          setGpsLoading(false);
+        }
+      },
+      (err) => {
+        setGpsLoading(false);
+        console.warn('Geolocation error:', err.message);
+        alert('Could not fetch GPS. Please type address manually.');
+      },
+      geoOptions
+    );
+  };
+
+  // Debounced Nominatim Search Autocomplete
+  const handleAddressChange = (e) => {
+    const val = e.target.value;
+    setAddress(val);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (val.trim().length < 3) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val.trim())}&countrycodes=in&limit=5`, {
+          headers: {
+            'Accept-Language': 'en'
+          }
+        });
+        if (res.ok) {
+          const list = await res.json();
+          setSuggestions(list || []);
+          setShowDropdown(Boolean(list && list.length > 0));
+        }
+      } catch (err) {
+        console.warn('Nominatim search notice:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 350);
+  };
+
+  const handleSelectSuggestion = (item) => {
+    setAddress(item.display_name);
+    setCustomCoords({
+      lat: parseFloat(item.lat),
+      lon: parseFloat(item.lon)
+    });
+    setSuggestions([]);
+    setShowDropdown(false);
+    if (showToast) {
+      const short = (item.display_name || '').split(',')[0];
+      showToast(`📍 Selected: ${short}`);
+    }
+  };
 
   // Fast-track presets
   const applyPreset = (presetTitle, presetCat, presetQty, presetWindow) => {
@@ -225,7 +357,7 @@ export default function DonorForm({
       donor_name: currentUser.name || currentUser.organization || 'Registered Donor',
       image: imagePreview,
       verification_code: 'HW-AUTHENTICATED',
-      coords: userLiveCoords || { lat: 28.6139, lon: 77.2090 },
+      coords: customCoords || userLiveCoords || { lat: 28.6139, lon: 77.2090 },
       is_food_verified: true,
       is_live_capture: isLiveCapture,
       ai_detected_class: aiState.reason || 'AI Verified Food',
@@ -475,26 +607,56 @@ export default function DonorForm({
         </div>
 
         {/* Address & GPS */}
-        <div className="form-group" id="address-container">
-          <div className="label-row">
-            <label>Pickup address <small>(Delhi-NCR / Dehradun)</small></label>
-            <button type="button" id="gps-locate-btn" onClick={() => {
-              onRequestGPS((coords) => {
-                setAddress(`GPS: ${coords.lat.toFixed(4)}°N, ${coords.lon.toFixed(4)}°E`);
-              });
-            }}>
-              🎯 Use Live GPS
+        <div className="form-group" id="address-container" ref={dropdownRef} style={{ position: 'relative' }}>
+          <div className="label-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <label htmlFor="address">Pickup address <small>(Delhi-NCR / Dehradun)</small></label>
+            <button 
+              type="button" 
+              id="gps-locate-btn" 
+              onClick={handleGPSAutoLocate}
+              disabled={gpsLoading}
+            >
+              {gpsLoading ? '⏳ Detecting GPS...' : '🎯 Auto-Locate GPS'}
             </button>
           </div>
-          <input 
-            name="address" 
-            id="address" 
-            type="text" 
-            value={address} 
-            onChange={(e) => setAddress(e.target.value)} 
-            placeholder="Area, landmark, city" 
-            required 
-          />
+          <div className="address-input-wrapper">
+            <input 
+              name="address" 
+              id="address" 
+              type="text" 
+              value={address} 
+              onChange={handleAddressChange}
+              onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
+              placeholder="Start typing area, colony, or landmark..." 
+              required 
+              autoComplete="off"
+            />
+            {isSearching && (
+              <span className="address-spinner">
+                <i className="fa-solid fa-spinner fa-spin"></i>
+              </span>
+            )}
+          </div>
+          {customCoords && (
+            <div style={{ marginTop: '5px', fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <i className="fa-solid fa-circle-check"></i>
+              <span>Pinpoint locked ({customCoords.lat.toFixed(4)}°N, {customCoords.lon.toFixed(4)}°E)</span>
+            </div>
+          )}
+          {showDropdown && suggestions.length > 0 && (
+            <ul className="address-suggestions-dropdown">
+              {suggestions.map((item, idx) => (
+                <li 
+                  key={item.place_id || idx} 
+                  className="address-suggestion-item"
+                  onClick={() => handleSelectSuggestion(item)}
+                >
+                  <i className="fa-solid fa-location-dot" style={{ marginTop: '2px', color: '#10b981', flexShrink: 0 }}></i>
+                  <span>{item.display_name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Phone */}
