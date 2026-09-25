@@ -239,7 +239,7 @@ export default function DonorForm({
 
   return (
     <div id="donor-form-container">
-      <form class="donor-form" id="donor-form" onSubmit={handleSubmit}>
+      <form className="donor-form" id="donor-form" onSubmit={handleSubmit}>
         <div className="form-heading">
           <span className="form-icon"><i className="fa-solid fa-plus"></i></span>
           <div>
