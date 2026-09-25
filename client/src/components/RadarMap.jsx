@@ -32,8 +32,9 @@ export default function RadarMap({
         attributionControl: false
       }).setView([initialLat, initialLon], 12);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19
+      L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: '&copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ'
       }).addTo(map);
 
       markersGroupRef.current = L.layerGroup().addTo(map);
