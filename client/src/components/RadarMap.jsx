@@ -6,6 +6,7 @@ import '../styles/map.css';
 export default function RadarMap({ 
   userLiveCoords, 
   listings = [], 
+  currentUser,
   onBackToHome 
 }) {
   const [filter, setFilter] = useState('ALL');
@@ -89,20 +90,48 @@ export default function RadarMap({
 
     // Combine verified directory + live donations
     const allLocations = [
-      ...VERIFIED_DIRECTORY.map(item => ({ ...item, isDonation: false })),
-      ...listings.map(item => ({
-        id: `donation_${item.id}`,
-        type: 'DONATION',
-        name: `Surplus: ${item.title}`,
-        address: item.address,
-        darpan_id: item.verification_code || 'FOODLOOP-VERIFIED',
-        phone: item.phone,
-        lat: item.coords?.lat || 28.6139,
-        lon: item.coords?.lon || 77.2090,
-        capacity: item.quantity,
-        isDonation: true,
-        image: item.image
-      }))
+      ...VERIFIED_DIRECTORY.map(item => ({ ...item, isDonation: false, canCall: true })),
+      ...listings.map(item => {
+        const isClaimed = Boolean(item.claimed_by || item.claimed_by_ngo || item.status === 'CLAIMED');
+        const isItemDonor = Boolean(
+          currentUser && (
+            currentUser.role === 'DONOR' ||
+            (currentUser.name && item.donor_name && currentUser.name.toLowerCase() === item.donor_name.toLowerCase()) ||
+            (currentUser.phone && item.phone && currentUser.phone === item.phone)
+          )
+        );
+        const isClaimant = Boolean(
+          currentUser && isClaimed && (
+            (item.claimed_by && (
+              item.claimed_by.toLowerCase() === (currentUser.organization || '').toLowerCase() ||
+              item.claimed_by.toLowerCase() === (currentUser.name || '').toLowerCase()
+            )) ||
+            (item.claimed_by_ngo && (
+              item.claimed_by_ngo.toLowerCase() === (currentUser.organization || '').toLowerCase() ||
+              item.claimed_by_ngo.toLowerCase() === (currentUser.name || '').toLowerCase()
+            )) ||
+            (item.claimant_phone && currentUser.phone && item.claimant_phone === currentUser.phone)
+          )
+        );
+        const canView = Boolean(isItemDonor || isClaimant);
+
+        return {
+          id: `donation_${item.id || item._id}`,
+          type: 'DONATION',
+          name: `Surplus: ${item.title}`,
+          address: canView ? item.address : `${item.address?.split(',').slice(-2).join(', ') || 'Delhi-NCR'} (Claim to unlock exact location)`,
+          darpan_id: item.verification_code || 'FOODLOOP-VERIFIED',
+          phone: item.phone,
+          canCall: canView,
+          lat: item.coords?.lat || 28.6139,
+          lon: item.coords?.lon || 77.2090,
+          capacity: item.quantity,
+          isDonation: true,
+          isClaimed,
+          isClaimant,
+          image: item.image
+        };
+      })
     ];
 
     allLocations.forEach(loc => {
@@ -131,16 +160,22 @@ export default function RadarMap({
             <div style="font-size: 11px; color: #38bdf8; font-weight: 700; margin-bottom: 6px;">📍 ${distKm} km away</div>
             <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 6px;">${loc.address}</div>
             <div style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">Capacity / Qty: <strong>${loc.capacity}</strong></div>
-            <div style="display: flex; gap: 6px;">
-              <a href="tel:${loc.phone}" style="background: #10b981; color: #000; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 800;">📞 Call</a>
-              <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lon}" target="_blank" rel="noopener noreferrer" style="background: #334155; color: #fff; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 700;">🧭 Navigate</a>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              ${loc.canCall && loc.phone ? `
+                <a href="tel:${String(loc.phone).replace(/\D/g, '')}" style="background: #10b981; color: #000; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 800;">📞 Call</a>
+              ` : `
+                <span style="font-size: 10px; color: #94a3b8;"><i class="fa-solid fa-lock"></i> Phone locked until claimed</span>
+              `}
+              ${loc.canCall ? `
+                <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lon}" target="_blank" rel="noopener noreferrer" style="background: #334155; color: #fff; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 700;">🧭 Navigate</a>
+              ` : ''}
             </div>
           </div>
         `);
 
       locationMarkersMap.current[loc.id] = marker;
     });
-  }, [filter, userCoords, listings]);
+  }, [filter, userCoords, listings, currentUser]);
 
   // Recenter GPS
   const recenterGPS = () => {

@@ -313,6 +313,7 @@ export default function App() {
         <RadarMap 
           userLiveCoords={userLiveCoords}
           listings={listings}
+          currentUser={currentUser}
           onBackToHome={() => setCurrentView('HOME')}
         />
       ) : (
