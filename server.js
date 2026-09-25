@@ -622,7 +622,19 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
   body('address').trim().notEmpty().withMessage('Pickup address is required and cannot be empty.'),
   validateRequest
 ], async (req, res) => {
-  const { image, is_food_verified, is_live_capture, ai_detected_class, trust_score, verification_code } = req.body;
+  const { 
+    title, 
+    category, 
+    food_type, 
+    quantity, 
+    expiry_hours, 
+    address, 
+    image, 
+    coords,
+    is_live_capture, 
+    ai_detected_class, 
+    verification_code 
+  } = req.body;
   const donorPhone = req.user?.phone || req.body.phone;
   const donorId = req.user?.id || req.body.donor_id || '';
   const donorName = req.user?.name || req.body.donor_name || 'Anonymous Donor';
@@ -632,31 +644,42 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
   }
 
   const imageHash = image ? await computePerceptualHash(image) : '';
+  const numExpiry = Number(expiry_hours) || 3;
+  const initialStatus = numExpiry === 1 ? 'DIVERTED_TO_ANIMALS' : 'AVAILABLE';
+
+  const donationData = {
+    title: String(title).trim(),
+    category: category || food_type || 'Vegetarian',
+    food_type: food_type || category || 'Vegetarian',
+    quantity: String(quantity).trim(),
+    expiry_hours: numExpiry,
+    address: String(address).trim(),
+    image: image || '',
+    image_hash: imageHash,
+    coords: coords && typeof coords.lat === 'number' && typeof coords.lon === 'number' 
+      ? { lat: coords.lat, lon: coords.lon }
+      : { lat: 28.6139, lon: 77.2090 },
+    phone: donorPhone,
+    donor_id: donorId,
+    donor_name: donorName,
+    verification_code: verification_code || 'HW-AUTH',
+    is_verified: true,
+    is_food_verified: true,
+    is_live_capture: is_live_capture !== undefined ? Boolean(is_live_capture) : true,
+    ai_detected_class: ai_detected_class || 'Live Hardware Camera Verified',
+    trust_score: 100,
+    status: initialStatus
+  };
 
   try {
-    const newItem = new Donation({
-      ...req.body,
-      phone: donorPhone,
-      donor_id: donorId,
-      donor_name: donorName,
-      image_hash: imageHash,
-      verification_code: verification_code || 'HW-AUTH',
-      is_food_verified: is_food_verified !== undefined ? is_food_verified : true,
-      is_live_capture: is_live_capture !== undefined ? is_live_capture : true,
-      ai_detected_class: ai_detected_class || 'Live Hardware Camera Verified',
-      trust_score: trust_score !== undefined ? trust_score : 100
-    });
+    const newItem = new Donation(donationData);
     await newItem.save();
     res.status(201).json(newItem);
   } catch (err) {
     const fallbackItem = { 
       id: Date.now().toString(), 
-      ...req.body, 
-      phone: donorPhone,
-      donor_id: donorId,
-      donor_name: donorName,
-      image_hash: imageHash, 
-      status: req.body.status || 'AVAILABLE' 
+      ...donationData,
+      created_at: new Date()
     };
     memoryDonations.unshift(fallbackItem);
     res.status(201).json(fallbackItem);
