@@ -8,6 +8,7 @@ export default function RescueFeeds({
   onClaim, 
   onOpenDispute, 
   onOpenQR, 
+  onOpenScanner,
   onRefresh, 
   onOpenDashboard 
 }) {
@@ -67,6 +68,14 @@ export default function RescueFeeds({
           filteredListings.map(item => {
             const timeLeft = calculateRemainingTime(item.created_at, item.expiry_hours);
             const isClaimed = item.claimed_by || item.status === 'CLAIMED';
+            const isItemDonor = Boolean(
+              currentUser && (
+                currentUser.role === 'DONOR' ||
+                (currentUser.id && item.donor_id && String(currentUser.id) === String(item.donor_id)) ||
+                (currentUser.name && item.donor_name && currentUser.name.toLowerCase() === item.donor_name.toLowerCase()) ||
+                (currentUser.phone && item.phone && currentUser.phone === item.phone)
+              )
+            );
 
             return (
               <article key={item.id} className="feed-card" style={{
@@ -148,22 +157,41 @@ export default function RescueFeeds({
                         🧭 Navigate
                       </a>
 
-                      <button 
-                        type="button" 
-                        onClick={() => onOpenQR(item)} 
-                        style={{
-                          background: '#1e293b',
-                          color: '#38bdf8',
-                          border: '1px solid #38bdf8',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          padding: '6px 10px',
-                          borderRadius: '6px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        📲 QR
-                      </button>
+                      {isItemDonor ? (
+                        <button 
+                          type="button" 
+                          onClick={() => onOpenQR(item)} 
+                          style={{
+                            background: '#1e293b',
+                            color: '#38bdf8',
+                            border: '1px solid #38bdf8',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          📲 Show Pickup QR
+                        </button>
+                      ) : isNGO ? (
+                        <button 
+                          type="button" 
+                          onClick={() => onOpenScanner && onOpenScanner(item)} 
+                          style={{
+                            background: '#064e3b',
+                            color: '#34d399',
+                            border: '1px solid #10b981',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          📷 Scan to Collect
+                        </button>
+                      ) : null}
 
                       {isNGO && (
                         <button 

@@ -51,6 +51,7 @@ export default function App() {
   const [generatedOTP, setGeneratedOTP] = useState('');
   const [pendingDonation, setPendingDonation] = useState(null);
   const [activeQRListing, setActiveQRListing] = useState(null);
+  const [scannerListing, setScannerListing] = useState(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [disputeListing, setDisputeListing] = useState(null);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
@@ -378,6 +379,10 @@ export default function App() {
                     onClaim={handleClaim}
                     onOpenDispute={handleOpenDispute}
                     onOpenQR={(item) => setActiveQRListing(item)}
+                    onOpenScanner={(item) => {
+                      setScannerListing(item);
+                      setIsScannerOpen(true);
+                    }}
                     onRefresh={loadListings}
                     onOpenDashboard={() => setIsDashboardOpen(true)}
                   />
@@ -422,9 +427,30 @@ export default function App() {
 
           <QRScannerModal 
             isOpen={isScannerOpen}
-            onClose={() => setIsScannerOpen(false)}
-            onScanSuccess={() => {
+            onClose={() => {
+              setIsScannerOpen(false);
+              setScannerListing(null);
+            }}
+            listing={scannerListing}
+            onScanSuccess={async (scannedListing) => {
               showToast('✅ QR Handshake verified successfully!');
+              if (scannedListing && scannedListing.id) {
+                try {
+                  const token = localStorage.getItem('foodloop_auth_token');
+                  await fetch(`/api/donations/${scannedListing.id}/claim`, {
+                    method: 'PATCH',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': token ? `Bearer ${token}` : ''
+                    },
+                    body: JSON.stringify({
+                      claimant_org: currentUser?.organization || currentUser?.name || 'Verified NGO Partner',
+                      claimant_phone: currentUser?.phone || ''
+                    })
+                  });
+                } catch (_) {}
+                setListings(prev => prev.map(l => (String(l.id) === String(scannedListing.id) || String(l._id) === String(scannedListing.id)) ? { ...l, status: 'CLAIMED', claimed_by: currentUser?.organization || currentUser?.name || 'Verified NGO' } : l));
+              }
               loadListings();
             }}
           />

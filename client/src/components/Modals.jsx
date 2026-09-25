@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { VERIFIED_NGO_REGISTRY } from '../data/directory';
 
 // ─── 1. Auth Modal ─────────────────────────────────────────────────────────────
@@ -281,45 +282,210 @@ export function QRHandoverModal({ isOpen, onClose, listing }) {
 }
 
 // ─── 4. QR Scanner Modal ────────────────────────────────────────────────────────
-export function QRScannerModal({ isOpen, onClose, onScanSuccess }) {
+export function QRScannerModal({ isOpen, onClose, onScanSuccess, listing }) {
   const [scanMessage, setScanMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const scannerRef = useRef(null);
+  const handledRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setScanMessage('');
+      setErrorMessage('');
+      handledRef.current = false;
+      return;
+    }
+
+    handledRef.current = false;
+    let scannerInstance = null;
+    let isCancelled = false;
+
+    const timer = setTimeout(() => {
+      if (isCancelled) return;
+      const element = document.getElementById('qr-reader-box');
+      if (!element) return;
+
+      try {
+        scannerInstance = new Html5QrcodeScanner(
+          'qr-reader-box',
+          {
+            fps: 10,
+            qrbox: { width: 220, height: 220 },
+            aspectRatio: 1.0,
+            showTorchButtonIfSupported: true
+          },
+          /* verbose= */ false
+        );
+        scannerRef.current = scannerInstance;
+
+        const onScanSuccessLocal = (decodedText) => {
+          if (handledRef.current) return;
+
+          let isMatch = false;
+          let matchedInfo = '';
+
+          try {
+            const data = JSON.parse(decodedText);
+            if (listing) {
+              if (listing.id && data.id && String(listing.id) === String(data.id)) {
+                isMatch = true;
+                matchedInfo = `Listing #${listing.id}`;
+              } else if (listing.verification_code && data.verification_code && listing.verification_code === data.verification_code) {
+                isMatch = true;
+                matchedInfo = data.verification_code;
+              } else if (listing.verification_code && decodedText.includes(listing.verification_code)) {
+                isMatch = true;
+              }
+            } else {
+              isMatch = true;
+              matchedInfo = data.verification_code || (data.id ? `Listing #${data.id}` : 'Handshake Verified');
+            }
+          } catch (_) {
+            if (listing) {
+              if (listing.verification_code && decodedText.includes(listing.verification_code)) {
+                isMatch = true;
+              } else if (listing.id && decodedText.includes(String(listing.id))) {
+                isMatch = true;
+              } else if (decodedText.includes('HW-AUTHENTICATED')) {
+                isMatch = true;
+              }
+            } else {
+              isMatch = true;
+            }
+          }
+
+          if (isMatch) {
+            handledRef.current = true;
+            setScanMessage(`✅ Handshake Verified! Pickup Recorded. ${matchedInfo ? `(${matchedInfo})` : ''}`);
+            setErrorMessage('');
+            setTimeout(() => {
+              if (onScanSuccess) onScanSuccess(listing);
+              onClose();
+            }, 1200);
+          } else {
+            setErrorMessage(`⚠️ QR Mismatch: Scanned code does not match Listing #${listing?.id || ''}.`);
+          }
+        };
+
+        const onScanErrorLocal = () => {
+          // ignore routine frame-level scan errors
+        };
+
+        scannerInstance.render(onScanSuccessLocal, onScanErrorLocal);
+      } catch (e) {
+        console.warn('Html5QrcodeScanner initialization notice:', e);
+      }
+    }, 150);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch((e) => {
+          console.warn('Scanner clear error:', e);
+        });
+        scannerRef.current = null;
+      }
+    };
+  }, [isOpen, listing]);
 
   if (!isOpen) return null;
 
+  const handleSimulate = () => {
+    if (handledRef.current) return;
+    handledRef.current = true;
+    setScanMessage('✅ Handshake Verified! Pickup Recorded (Simulated).');
+    setErrorMessage('');
+    setTimeout(() => {
+      if (onScanSuccess) onScanSuccess(listing);
+      onClose();
+    }, 1000);
+  };
+
   return (
     <div id="qr-scanner-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div className="qr-modal-card" style={{ maxWidth: '400px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+      <div className="qr-modal-card" style={{ maxWidth: '440px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
           <h3 style={{ fontSize: '16px', color: '#fff', margin: 0 }}>📷 Scan Donor Pickup QR</h3>
           <button type="button" className="close-x-btn" onClick={onClose}>✕</button>
         </div>
-        <p style={{ fontSize: '12px', color: '#a1a1aa', marginBottom: '14px' }}>
-          Point camera at donor's Handshake QR to verify collection.
-        </p>
-        <div id="qr-reader-box" style={{ width: '100%', borderRadius: '12px', overflow: 'hidden', background: '#000', minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8', padding: '20px', textAlign: 'center' }}>
-          <div>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>📷</div>
-            <div>Scanner Active</div>
-            <button 
-              type="button" 
-              onClick={() => {
-                setScanMessage('✅ Handshake Verified! Pickup Recorded.');
-                setTimeout(() => { if (onScanSuccess) onScanSuccess(); onClose(); }, 1200);
-              }}
-              style={{ marginTop: '12px', background: '#10b981', color: '#000', border: 'none', padding: '6px 14px', borderRadius: '6px', fontWeight: 800, cursor: 'pointer' }}
-            >
-              Simulate Scan Complete
-            </button>
+
+        {listing && (
+          <div style={{ background: '#1e293b', padding: '8px 12px', borderRadius: '8px', marginBottom: '12px', fontSize: '12px', color: '#94a3b8' }}>
+            <span style={{ color: '#38bdf8', fontWeight: 700 }}>Target: </span>
+            {listing.title} ({listing.donor_name}) · Code: <code style={{ color: '#f59e0b', fontWeight: 700 }}>{listing.verification_code || 'HW-AUTHENTICATED'}</code>
           </div>
-        </div>
+        )}
+
+        <p style={{ fontSize: '12px', color: '#a1a1aa', marginBottom: '12px' }}>
+          Point camera at the donor's Handshake QR to verify collection.
+        </p>
+
+        <div 
+          id="qr-reader-box" 
+          style={{ 
+            width: '100%', 
+            borderRadius: '12px', 
+            overflow: 'hidden', 
+            background: '#090d16', 
+            minHeight: '220px', 
+            display: 'flex', 
+            flexDirection: 'column',
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            color: '#38bdf8', 
+            padding: '10px'
+          }}
+        />
+
         {scanMessage && (
-          <div id="scan-feedback-msg" style={{ marginTop: '12px', fontSize: '12px', fontWeight: 700, color: '#34d399', textAlign: 'center' }}>
+          <div id="scan-feedback-msg" style={{ marginTop: '12px', fontSize: '13px', fontWeight: 700, color: '#34d399', textAlign: 'center' }}>
             {scanMessage}
           </div>
         )}
-        <button type="button" onClick={onClose} style={{ width: '100%', marginTop: '12px', padding: '10px', background: '#27272a', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-          Cancel Scanning
-        </button>
+
+        {errorMessage && (
+          <div style={{ marginTop: '12px', fontSize: '12px', fontWeight: 700, color: '#f87171', textAlign: 'center' }}>
+            {errorMessage}
+          </div>
+        )}
+
+        <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <button 
+            type="button" 
+            id="simulate-scan-btn"
+            onClick={handleSimulate} 
+            style={{ 
+              background: '#10b981', 
+              color: '#000', 
+              border: 'none', 
+              padding: '8px 14px', 
+              borderRadius: '8px', 
+              fontWeight: 800, 
+              fontSize: '12px',
+              cursor: 'pointer' 
+            }}
+          >
+            ⚡ Simulate Scan Complete (Demo Mode)
+          </button>
+
+          <button 
+            type="button" 
+            onClick={onClose} 
+            style={{ 
+              width: '100%', 
+              padding: '10px', 
+              background: '#27272a', 
+              color: '#fff', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer', 
+              fontSize: '13px' 
+            }}
+          >
+            Cancel Scanning
+          </button>
+        </div>
       </div>
     </div>
   );
