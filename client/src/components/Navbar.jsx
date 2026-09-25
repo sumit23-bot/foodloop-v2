@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function Navbar({ currentUser, onOpenAuth, onOpenDashboard, onLogout, currentView, setCurrentView }) {
+export default function Navbar({ currentUser, onOpenAuth, onOpenDashboard, onLogout, onOpenSponsor, currentView, setCurrentView }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -27,6 +27,27 @@ export default function Navbar({ currentUser, onOpenAuth, onOpenDashboard, onLog
           <a href="#rescue-hub" onClick={() => { setCurrentView('HOME'); setMenuOpen(false); }}>Rescue hub</a>
           <a href="#contact" onClick={() => { setCurrentView('HOME'); setMenuOpen(false); }}>Contact & Notes</a>
           
+          {/* Sponsor a Meal Nav Button */}
+          <button 
+            type="button"
+            id="nav-sponsor-meal-btn"
+            onClick={() => { onOpenSponsor && onOpenSponsor(); setMenuOpen(false); }}
+            style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              color: '#34d399',
+              border: '1.5px solid rgba(16, 185, 129, 0.4)',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            🍲 Sponsor a Meal
+          </button>
+
           {/* Radar Map Toggle Button */}
           <button 
             type="button"

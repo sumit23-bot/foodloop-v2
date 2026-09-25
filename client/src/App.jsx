@@ -286,6 +286,7 @@ export default function App() {
             currentUser={currentUser}
             onOpenAuth={() => setIsAuthOpen(true)}
             onOpenDashboard={() => setIsDashboardOpen(true)}
+            onOpenSponsor={() => setIsSponsorOpen(true)}
             onLogout={() => {
               setCurrentUser(null);
               localStorage.removeItem('foodloop_auth_user');

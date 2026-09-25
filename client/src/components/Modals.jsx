@@ -862,6 +862,7 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
   const [name, setName] = useState(currentUser?.name || '');
   const [contact, setContact] = useState(currentUser?.phone || '');
   const [panNumber, setPanNumber] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -874,7 +875,6 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
 
   const currentAmount = customAmount ? (parseInt(customAmount, 10) || 0) : selectedPreset;
   const mealsEquivalent = Math.max(1, Math.floor(currentAmount / 40));
-  const [loading, setLoading] = useState(false);
 
   const handleContribute = async (e) => {
     e.preventDefault();
@@ -985,7 +985,12 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
   };
 
   return (
-    <div id="sponsor-meal-modal" className="modal-overlay" style={{ display: 'flex' }}>
+    <div 
+      id="sponsor-meal-modal" 
+      className="modal-overlay" 
+      style={{ display: 'flex' }}
+      onClick={(e) => { if (e.target.id === 'sponsor-meal-modal') onClose(); }}
+    >
       <div className="dashboard-modal-card" style={{ maxWidth: '440px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <h3 style={{ fontSize: '17px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
