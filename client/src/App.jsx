@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
+import { calculateDistance } from './data/directory';
 
 // Components
 import Navbar from './components/Navbar';
@@ -181,16 +182,36 @@ export default function App() {
 
   const handleSubmitDispute = async (report) => {
     try {
-      const res = await fetch(`/api/donations/${report.listingId}/dispute`, {
+      const token = localStorage.getItem('foodloop_auth_token');
+      const listing = listings.find(l => String(l.id) === String(report.listingId));
+      const distanceKm = listing && report.reportedCoords
+        ? calculateDistance(report.reportedCoords.lat, report.reportedCoords.lon, listing.coords?.lat, listing.coords?.lon)
+        : 0;
+
+      const res = await fetch(`/api/donations/${report.listingId}/report-fake`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(report)
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({
+          reporter_name: currentUser?.name || 'Anonymous Reporter',
+          reporter_phone: currentUser?.phone || '',
+          darpan_id: currentUser?.ngo_darpan_id || currentUser?.darpan_id || '',
+          reason: report.reason,
+          evidence_image: report.evidencePhoto,
+          reporter_distance_km: distanceKm
+        })
       });
+
+      const data = await res.json();
       if (res.ok) {
-        showToast('🚩 Dispute incident report recorded with geotagged signature.');
+        showToast(data.message || '🚩 Dispute incident report recorded.');
+      } else {
+        alert(data.error || 'Failed to submit dispute report.');
       }
     } catch (err) {
-      showToast('🚩 Dispute incident report logged.');
+      alert('Could not submit dispute report — please check your connection and try again.');
     }
   };
 
