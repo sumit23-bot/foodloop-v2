@@ -23,7 +23,8 @@ import {
   QRScannerModal, 
   DisputeModal, 
   ImpactDashboardModal, 
-  ShareModal 
+  ShareModal,
+  SponsorMealModal
 } from './components/Modals';
 
 export default function App() {
@@ -56,6 +57,7 @@ export default function App() {
   const [disputeListing, setDisputeListing] = useState(null);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isSponsorOpen, setIsSponsorOpen] = useState(false);
 
   // Show Toast Helper
   const showToast = (msg) => {
@@ -261,6 +263,8 @@ export default function App() {
       document.getElementById('rescue-hub')?.scrollIntoView({ behavior: 'smooth' });
     } else if (type === 'NGO') {
       setIsAuthOpen(true);
+    } else if (type === 'SPONSOR') {
+      setIsSponsorOpen(true);
     } else if (type === 'VOLUNTEER') {
       document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
     } else if (type === 'SHARE') {
@@ -474,6 +478,13 @@ export default function App() {
           <ShareModal 
             isOpen={isShareOpen}
             onClose={() => setIsShareOpen(false)}
+          />
+
+          <SponsorMealModal 
+            isOpen={isSponsorOpen}
+            onClose={() => setIsSponsorOpen(false)}
+            currentUser={currentUser}
+            showToast={showToast}
           />
 
           {/* Toast Notification Container */}

@@ -853,3 +853,211 @@ export function ShareModal({ isOpen, onClose }) {
     </div>
   );
 }
+
+// ─── 8. Sponsor Meal Modal ──────────────────────────────────────────────────────
+export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContribute, showToast }) {
+  const [selectedPreset, setSelectedPreset] = useState(40);
+  const [customAmount, setCustomAmount] = useState('');
+  const [name, setName] = useState(currentUser?.name || '');
+  const [contact, setContact] = useState(currentUser?.phone || '');
+  const [panNumber, setPanNumber] = useState('');
+
+  useEffect(() => {
+    if (currentUser) {
+      if (!name) setName(currentUser.name || '');
+      if (!contact) setContact(currentUser.phone || '');
+    }
+  }, [currentUser, isOpen]);
+
+  if (!isOpen) return null;
+
+  const currentAmount = customAmount ? (parseInt(customAmount, 10) || 0) : selectedPreset;
+  const mealsEquivalent = Math.max(1, Math.floor(currentAmount / 40));
+
+  const handleContribute = (e) => {
+    e.preventDefault();
+    if (currentAmount < 10) {
+      alert('Minimum contribution amount is ₹10.');
+      return;
+    }
+    if (!name.trim()) {
+      alert('Please enter your full name for the donation receipt.');
+      return;
+    }
+    if (!contact.trim()) {
+      alert('Please enter your mobile or email for the 80G tax certificate.');
+      return;
+    }
+
+    if (onProceedContribute) {
+      onProceedContribute({
+        amount: currentAmount,
+        name: name.trim(),
+        contact: contact.trim(),
+        pan: panNumber.trim().toUpperCase(),
+        mealsEquivalent
+      });
+    } else {
+      if (showToast) showToast(`❤️ Thank you ${name}! Contribution of ₹${currentAmount} recorded.`);
+      onClose();
+    }
+  };
+
+  return (
+    <div id="sponsor-meal-modal" className="modal-overlay" style={{ display: 'flex' }}>
+      <div className="dashboard-modal-card" style={{ maxWidth: '440px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h3 style={{ fontSize: '17px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+            <span style={{ fontSize: '20px' }}>🍲</span> Sponsor a Rescued Meal
+          </h3>
+          <button type="button" className="close-x-btn" onClick={onClose}>✕</button>
+        </div>
+
+        <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '16px', lineHeight: 1.5 }}>
+          Can't donate food? Fund volunteer logistics, insulated rescue boxes, and fuel to safely deliver surplus banquet meals to shelters and street children.
+        </p>
+
+        {/* Preset Amounts */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
+            Select Contribution Amount
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '8px' }}>
+            {[
+              { amount: 40, label: '₹40', sub: '1 Meal' },
+              { amount: 200, label: '₹200', sub: '5 Meals' },
+              { amount: 500, label: '₹500', sub: '12 Meals' },
+            ].map(preset => (
+              <button
+                key={preset.amount}
+                type="button"
+                onClick={() => { setSelectedPreset(preset.amount); setCustomAmount(''); }}
+                style={{
+                  background: (!customAmount && selectedPreset === preset.amount) ? 'rgba(16, 185, 129, 0.2)' : '#1e293b',
+                  border: (!customAmount && selectedPreset === preset.amount) ? '2px solid #10b981' : '1px solid #334155',
+                  borderRadius: '8px',
+                  padding: '10px 4px',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  color: (!customAmount && selectedPreset === preset.amount) ? '#34d399' : '#fff'
+                }}
+              >
+                <div style={{ fontWeight: 800, fontSize: '15px' }}>{preset.label}</div>
+                <div style={{ fontSize: '10px', color: '#94a3b8' }}>{preset.sub}</div>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: '12px', top: '10px', color: '#94a3b8', fontSize: '13px' }}>₹</span>
+            <input
+              type="number"
+              placeholder="Or enter custom amount in ₹"
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 12px 10px 28px',
+                background: '#111827',
+                border: customAmount ? '2px solid #10b981' : '1px solid #334155',
+                borderRadius: '8px',
+                color: '#fff',
+                fontSize: '13px'
+              }}
+              min="10"
+            />
+          </div>
+        </div>
+
+        {/* Impact Live Summary Banner */}
+        <div style={{
+          background: 'rgba(16, 185, 129, 0.12)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: '8px',
+          padding: '10px 14px',
+          marginBottom: '16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>Immediate Impact</div>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#34d399' }}>
+              Feeds approx. {mealsEquivalent} {mealsEquivalent === 1 ? 'person' : 'people'}
+            </div>
+          </div>
+          <div style={{ background: '#064e3b', color: '#6ee7b7', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
+            80G Tax Deductible
+          </div>
+        </div>
+
+        {/* Contributor Form */}
+        <form onSubmit={handleContribute}>
+          <div className="form-group" style={{ marginBottom: '10px' }}>
+            <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Contributor Name</label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Ramesh Chandra"
+              style={{ padding: '9px 12px', fontSize: '12px' }}
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: '10px' }}>
+            <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Phone / Email (for 80G Receipt)</label>
+            <input
+              type="text"
+              required
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+              placeholder="e.g. 9811122233 or donor@example.com"
+              style={{ padding: '9px 12px', fontSize: '12px' }}
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>PAN Number <span style={{ fontSize: '10px', color: '#64748b' }}>(Optional, for 80G certificate)</span></label>
+            <input
+              type="text"
+              maxLength="10"
+              value={panNumber}
+              onChange={(e) => setPanNumber(e.target.value)}
+              placeholder="e.g. ABCDE1234F"
+              style={{ padding: '9px 12px', fontSize: '12px', textTransform: 'uppercase' }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{ flex: 1, padding: '11px', background: '#334155', color: '#cbd5e1', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              id="proceed-sponsor-btn"
+              style={{
+                flex: 2,
+                padding: '11px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#000',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '13px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+              }}
+            >
+              Proceed to Contribute ₹{currentAmount}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

@@ -26,10 +26,13 @@ export default function LeadMagnets({ onAction }) {
             <i className="fa-solid fa-arrow-up-right-from-square card-arrow"></i>
           </button>
           
-          <button className="action-card" onClick={() => onAction('VOLUNTEER')}>
-            <span className="card-number">03</span>
-            <span className="action-icon"><i className="fa-solid fa-person-running"></i></span>
-            <span><strong>Volunteer & Deliver</strong><small>Bring your rescue skills to the network.</small></span>
+          <button className="action-card featured" onClick={() => onAction('SPONSOR')} style={{ border: '1.5px solid rgba(16, 185, 129, 0.4)' }}>
+            <span className="card-number" style={{ color: '#10b981' }}>03</span>
+            <span className="action-icon"><i className="fa-solid fa-bowl-food"></i></span>
+            <span>
+              <strong style={{ color: '#34d399' }}>🍲 Sponsor a Rescued Meal — ₹40 Feeds 1 Person</strong>
+              <small>Can't donate food? Fund fuel and packaging for NGO volunteers to deliver surplus meals to shelters.</small>
+            </span>
             <i className="fa-solid fa-arrow-up-right-from-square card-arrow"></i>
           </button>
           
