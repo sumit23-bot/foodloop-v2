@@ -149,7 +149,7 @@ export default function App() {
     try {
       const token = localStorage.getItem('foodloop_auth_token');
       const res = await fetch(`/api/donations/${item.id}/claim`, {
-        method: 'POST',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
