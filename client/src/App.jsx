@@ -126,11 +126,8 @@ export default function App() {
         alert(data.error || 'Failed to publish donation.');
       }
     } catch (err) {
-      // Local fallback
       setIsOtpOpen(false);
-      setListings(prev => [pendingDonation, ...prev]);
-      showToast('🎉 Donation published live!');
-      confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+      alert('Could not publish your donation — please check your connection and try again.');
     }
   };
 
