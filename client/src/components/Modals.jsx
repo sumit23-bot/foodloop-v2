@@ -51,11 +51,12 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
       const data = await res.json();
 
       if (res.ok) {
-        localStorage.setItem('foodloop_auth_token', data.token || 'mock_jwt_token');
-        localStorage.setItem('foodloop_auth_user', JSON.stringify(data.user || payload));
-        onLoginSuccess(data.user || payload);
+        const { token, password: _pw, ...userFields } = data;
+        localStorage.setItem('foodloop_auth_token', token || '');
+        localStorage.setItem('foodloop_auth_user', JSON.stringify(userFields));
+        onLoginSuccess(userFields);
         onClose();
-        if (showToast) showToast(`✅ Logged in successfully as ${data.user?.name || name || 'User'}`);
+        if (showToast) showToast(`✅ Logged in successfully as ${userFields.name || name || 'User'}`);
       } else {
         alert(data.error || 'Authentication failed. Please verify credentials.');
       }
