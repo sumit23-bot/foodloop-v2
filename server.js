@@ -221,43 +221,47 @@ app.post('/api/ai/chat', async (req, res) => {
     });
   }
 
-  try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-    
-    const formattedHistory = (conversationHistory || []).map(item => ({
-      role: item.role === 'model' ? 'model' : 'user',
-      parts: [{ text: item.parts?.[0]?.text || item.text || '' }]
-    }));
+  const CHAT_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash'];
 
-    const payload = {
-      systemInstruction: {
-        parts: [{ text: FOODLOOP_KNOWLEDGE_BASE }]
-      },
-      contents: [
-        ...formattedHistory,
-        { role: 'user', parts: [{ text: message }] }
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 300
+  for (const model of CHAT_MODELS) {
+    try {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+      
+      const formattedHistory = (conversationHistory || []).map(item => ({
+        role: item.role === 'model' ? 'model' : 'user',
+        parts: [{ text: item.parts?.[0]?.text || item.text || '' }]
+      }));
+
+      const payload = {
+        systemInstruction: {
+          parts: [{ text: FOODLOOP_KNOWLEDGE_BASE }]
+        },
+        contents: [
+          ...formattedHistory,
+          { role: 'user', parts: [{ text: message }] }
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 300
+        }
+      };
+
+      const aiRes = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (aiRes.ok) {
+        const aiData = await aiRes.json();
+        const replyText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (replyText) {
+          return res.json({ reply: replyText });
+        }
       }
-    };
-
-    const aiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (aiRes.ok) {
-      const aiData = await aiRes.json();
-      const replyText = aiData?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (replyText) {
-        return res.json({ reply: replyText });
-      }
+    } catch (err) {
+      console.warn(`Gemini chat ${model} failed, trying next:`, err.message);
     }
-  } catch (err) {
-    console.warn('Gemini API call failed, falling back to local NLP engine:', err.message);
   }
 
   return res.json({ 
@@ -271,7 +275,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
 // Helper: call Gemini vision with retry + model fallback for 503
 async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
-  const MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+  const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
   const payload = {
     contents: [{
       parts: [
@@ -835,10 +839,10 @@ app.listen(PORT, () => {
   console.log(`====================================================`);
   console.log(`🚀 FoodLoop Master Server running on http://localhost:${PORT}`);
   console.log(`🛡️ Hardware Geotag & Anti-Fraud Security: ACTIVE`);
-  if (GEMINI_API_KEY && GEMINI_API_KEY.startsWith('AIzaSy')) {
+  if (GEMINI_API_KEY && (GEMINI_API_KEY.startsWith('AIzaSy') || GEMINI_API_KEY.startsWith('AQ.'))) {
     console.log(`✅ Gemini API key format looks valid (Cloud Assistant ACTIVE)`);
   } else {
-    console.warn(`⚠️ GEMINI_API_KEY missing or wrong format (current value does not start with AIzaSy) — AI features will fall back to defaults`);
+    console.warn(`⚠️ GEMINI_API_KEY missing or wrong format — AI features will fall back to defaults`);
   }
   console.log(`====================================================`);
 });
