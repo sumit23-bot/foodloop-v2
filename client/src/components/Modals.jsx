@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { VERIFIED_NGO_REGISTRY } from '../data/directory';
 
 // ─── 1. Auth Modal ─────────────────────────────────────────────────────────────
@@ -250,12 +251,22 @@ export function QRHandoverModal({ isOpen, onClose, listing }) {
             textAlign: 'center'
           }}
         >
-          {/* Simple QR display rendering */}
-          <div style={{ fontFamily: 'monospace', color: '#000', fontSize: '11px', fontWeight: 800 }}>
-            <div style={{ fontSize: '36px', marginBottom: '8px' }}>🏁 [QR CODE]</div>
-            <div>ID: {listing.id}</div>
-            <div>DONOR: {listing.donor_name}</div>
-            <div>CODE: {listing.verification_code || 'HW-AUTHENTICATED'}</div>
+          {/* Real Scannable QR Code */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+            <QRCodeSVG 
+              value={JSON.stringify({
+                id: listing.id,
+                donor_name: listing.donor_name,
+                verification_code: listing.verification_code || 'HW-AUTHENTICATED'
+              })}
+              size={180}
+              level="M"
+            />
+            <div style={{ fontFamily: 'monospace', color: '#000', fontSize: '11px', fontWeight: 800 }}>
+              <div>ID: {listing.id}</div>
+              <div>DONOR: {listing.donor_name}</div>
+              <div>CODE: {listing.verification_code || 'HW-AUTHENTICATED'}</div>
+            </div>
           </div>
         </div>
         <p id="qr-handshake-status" style={{ color: '#38bdf8', fontSize: '13px' }}>
