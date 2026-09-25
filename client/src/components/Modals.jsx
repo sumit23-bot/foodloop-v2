@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { VERIFIED_NGO_REGISTRY, calculateDistance } from '../data/directory';
 import { generate80GCertificate } from '../utils/certificate';
+import confetti from 'canvas-confetti';
 
 // ─── 1. Auth Modal ─────────────────────────────────────────────────────────────
 export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
@@ -873,8 +874,9 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
 
   const currentAmount = customAmount ? (parseInt(customAmount, 10) || 0) : selectedPreset;
   const mealsEquivalent = Math.max(1, Math.floor(currentAmount / 40));
+  const [loading, setLoading] = useState(false);
 
-  const handleContribute = (e) => {
+  const handleContribute = async (e) => {
     e.preventDefault();
     if (currentAmount < 10) {
       alert('Minimum contribution amount is ₹10.');
@@ -889,17 +891,96 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
       return;
     }
 
-    if (onProceedContribute) {
-      onProceedContribute({
-        amount: currentAmount,
-        name: name.trim(),
-        contact: contact.trim(),
-        pan: panNumber.trim().toUpperCase(),
-        mealsEquivalent
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/donations/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: currentAmount,
+          donor_name: name.trim(),
+          donor_phone: contact.trim(),
+          donor_email: contact.includes('@') ? contact.trim() : ''
+        })
       });
-    } else {
-      if (showToast) showToast(`❤️ Thank you ${name}! Contribution of ₹${currentAmount} recorded.`);
-      onClose();
+
+      const orderData = await res.json();
+      if (!res.ok) {
+        throw new Error(orderData.error || 'Failed to create contribution order');
+      }
+
+      // Check if Razorpay checkout script is loaded and live/test keys exist
+      if (typeof window !== 'undefined' && window.Razorpay && !orderData.mock && orderData.key_id && orderData.key_id !== 'rzp_test_mock') {
+        const options = {
+          key: orderData.key_id,
+          amount: orderData.amount,
+          currency: orderData.currency || 'INR',
+          name: 'FoodLoop Surplus Rescue',
+          description: `Sponsor ${mealsEquivalent} Rescued Meals (₹${currentAmount})`,
+          order_id: orderData.order_id,
+          handler: async function (response) {
+            try {
+              const verifyRes = await fetch('/api/donations/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                  donor_name: name.trim(),
+                  donor_phone: contact.trim(),
+                  amount: currentAmount
+                })
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok && verifyData.verified) {
+                confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
+                if (showToast) showToast(`🎉 Payment of ₹${currentAmount} verified! 80G receipt issued to ${name}.`);
+                onClose();
+              } else {
+                alert('Payment verification failed.');
+              }
+            } catch (err) {
+              alert('Could not verify payment: ' + err.message);
+            }
+          },
+          prefill: {
+            name: name.trim(),
+            contact: contact.replace(/\D/g, '').slice(-10),
+            email: contact.includes('@') ? contact.trim() : 'contributor@foodloop.org'
+          },
+          theme: {
+            color: '#10b981'
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (resp) {
+          alert('Payment was cancelled or failed: ' + (resp?.error?.description || 'Cancelled'));
+        });
+        rzp.open();
+      } else {
+        // Fallback for demo mode / when testing without live keys
+        await fetch('/api/donations/verify-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            razorpay_order_id: orderData.order_id,
+            razorpay_payment_id: `pay_demo_${Date.now()}`,
+            donor_name: name.trim(),
+            donor_phone: contact.trim(),
+            amount: currentAmount
+          })
+        });
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        if (showToast) showToast(`❤️ Payment of ₹${currentAmount} recorded (Demo Mode)! 80G receipt generated for ${name}.`);
+        onClose();
+      }
+    } catch (err) {
+      alert('Error initiating contribution: ' + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1040,20 +1121,21 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
             <button
               type="submit"
               id="proceed-sponsor-btn"
+              disabled={loading}
               style={{
                 flex: 2,
                 padding: '11px',
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: '#000',
+                background: loading ? '#475569' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: loading ? '#cbd5e1' : '#000',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 800,
                 fontSize: '13px',
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                cursor: loading ? 'not-allowed' : 'pointer',
+                boxShadow: loading ? 'none' : '0 4px 12px rgba(16, 185, 129, 0.25)'
               }}
             >
-              Proceed to Contribute ₹{currentAmount}
+              {loading ? 'Processing Contribution...' : `Proceed to Contribute ₹${currentAmount}`}
             </button>
           </div>
         </form>

@@ -817,6 +817,112 @@ app.delete('/api/donations/purge-all', requireAuth, async (req, res) => {
   }
 });
 
+// --------------------------------------------------
+// 9b. RAZORPAY MICRO-DONATION & SPONSOR-A-MEAL ENDPOINTS
+// --------------------------------------------------
+let RazorpayClient = null;
+try {
+  const Razorpay = require('razorpay');
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    RazorpayClient = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+    console.log('💳 Razorpay Gateway Initialized (Live/Test Mode Active)');
+  }
+} catch (e) {
+  console.log('ℹ️ Razorpay SDK not initialized, demo mock fallback active');
+}
+
+app.post('/api/donations/create-order', async (req, res) => {
+  const { amount, donor_name, donor_phone, donor_email } = req.body;
+  const numAmount = Number(amount) || 40;
+  const amountInPaise = Math.round(numAmount * 100);
+
+  // If Razorpay keys and client exist, create real/test order via Razorpay API
+  if (RazorpayClient && process.env.RAZORPAY_KEY_ID) {
+    try {
+      const options = {
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `rcpt_fl_${Date.now()}`,
+        notes: {
+          donor_name: donor_name || 'Anonymous Contributor',
+          donor_phone: donor_phone || '',
+          purpose: 'FoodLoop Sponsor-A-Meal Rescue Fund'
+        }
+      };
+      const order = await RazorpayClient.orders.create(options);
+      return res.json({
+        order_id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        key_id: process.env.RAZORPAY_KEY_ID
+      });
+    } catch (err) {
+      console.warn('Razorpay order creation fallback:', err.message);
+    }
+  }
+
+  // Fallback for demo / test when keys are not configured
+  const mockOrderId = `order_mock_${Date.now()}`;
+  return res.json({
+    order_id: mockOrderId,
+    amount: amountInPaise,
+    currency: 'INR',
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_mock',
+    mock: true
+  });
+});
+
+app.post('/api/donations/verify-payment', async (req, res) => {
+  const { 
+    razorpay_order_id, 
+    razorpay_payment_id, 
+    razorpay_signature, 
+    donor_name, 
+    donor_phone, 
+    amount 
+  } = req.body;
+
+  // If mock order / demo mode
+  if (!razorpay_order_id || String(razorpay_order_id).startsWith('order_mock_') || !process.env.RAZORPAY_KEY_SECRET) {
+    const paymentId = razorpay_payment_id || `pay_mock_${Date.now()}`;
+    return res.json({
+      success: true,
+      verified: true,
+      payment_id: paymentId,
+      amount: amount || 40,
+      donor_name: donor_name || 'Contributor',
+      message: 'Payment recorded (Demo Mode)'
+    });
+  }
+
+  // Real order: verify HMAC-SHA256 signature using crypto
+  try {
+    const generatedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest('hex');
+
+    if (generatedSignature === razorpay_signature) {
+      return res.json({
+        success: true,
+        verified: true,
+        payment_id: razorpay_payment_id,
+        order_id: razorpay_order_id,
+        amount: amount || 40,
+        donor_name: donor_name || 'Contributor'
+      });
+    } else {
+      return res.status(400).json({ error: 'Payment verification failed: Signature mismatch.' });
+    }
+  } catch (err) {
+    console.error('Payment signature check failed:', err);
+    return res.status(400).json({ error: 'Payment verification error.' });
+  }
+});
+
 // Root and SPA Catch-All Route: Serve React App if built, else fallback to vanilla index.html
 app.use((req, res) => {
   // If an API request reaches here, return 404 JSON instead of index.html
