@@ -852,3 +852,75 @@ input:focus, select:focus, textarea:focus {
     max-width: 160px;
   }
 }
+
+/* ==========================================================================
+   Custom Modern Scrollbars & Feed Containers (Task 6)
+   ========================================================================== */
+
+/* Universal Scrollbar Settings for Scrollable Containers */
+.feed-list-scroll,
+.listing-feed,
+.dash-list-scroll,
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+  scroll-behavior: smooth;
+}
+
+.feed-list-scroll::-webkit-scrollbar,
+.listing-feed::-webkit-scrollbar,
+.dash-list-scroll::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.feed-list-scroll::-webkit-scrollbar-track,
+.listing-feed::-webkit-scrollbar-track,
+.dash-list-scroll::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 9999px;
+}
+
+.feed-list-scroll::-webkit-scrollbar-thumb,
+.listing-feed::-webkit-scrollbar-thumb,
+.dash-list-scroll::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+
+.feed-list-scroll::-webkit-scrollbar-thumb:hover,
+.listing-feed::-webkit-scrollbar-thumb:hover,
+.dash-list-scroll::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}
+
+/* 1. Rescue Feeds Listing Container */
+.listing-feed,
+.feed-list-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
+  scroll-behavior: smooth;
+}
+
+@media (min-width: 1024px) {
+  .listing-feed,
+  .feed-list-scroll {
+    max-height: 600px;
+  }
+}
+
+/* 2. Impact Dashboard Activity List */
+.dash-list-scroll,
+#dash-activity-list {
+  max-height: 260px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scroll-behavior: smooth;
+}

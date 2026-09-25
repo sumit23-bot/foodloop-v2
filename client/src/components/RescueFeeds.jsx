@@ -60,7 +60,7 @@ export default function RescueFeeds({
         </button>
       </div>
 
-      <div className="listing-feed" id="foodloop-feed-list" aria-live="polite">
+      <div className="listing-feed feed-list-scroll" id="foodloop-feed-list" aria-live="polite">
         {filteredListings.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
             <p style={{ fontSize: '18px', marginBottom: '8px' }}>🍃 No surplus listings in this loop right now.</p>
