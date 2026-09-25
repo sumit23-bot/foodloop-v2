@@ -154,7 +154,7 @@ export default function App() {
         },
         body: JSON.stringify({
           ngo_name: currentUser.organization || currentUser.name,
-          darpan_id: currentUser.darpan_id || 'UK/2015/0092341'
+          darpan_id: currentUser.ngo_darpan_id || currentUser.darpan_id || ''
         })
       });
 

@@ -130,98 +130,94 @@ export const VERIFIED_DIRECTORY = [
   },
 
   // 4. DEHRADUN VERIFIED INFRASTRUCTURE
-  // Dehradun NGOs
+  // Real verified data: NGOs, Animal Shelters, Biogas / Waste-to-Energy Plants
   {
     id: 'ddn_ngo_1',
     type: 'NGO',
-    name: 'SRSHTI Foundation Dehradun',
-    address: 'SRSHTI House, 23 Rajpur Road, Dehradun, Uttarakhand 248001',
-    darpan_id: 'UK/2015/0092341',
-    phone: '+91 98971 23456',
+    name: 'SRSHTI Foundation',
+    address: '59 Moti Bazar, Dehradun, Uttarakhand 248001',
+    phone: '+91 7055931313',
+    email: 'srshtiofficial@gmail.com',
     lat: 30.3214,
     lon: 78.0374,
-    capacity: '400 meals/day'
+    capacity: 'Food-donation program serving cooked meals'
   },
   {
     id: 'ddn_ngo_2',
     type: 'NGO',
-    name: 'Robin Hood Army – Dehradun Chapter',
-    address: 'Paltan Bazaar, Clock Tower, Dehradun, Uttarakhand 248001',
-    darpan_id: 'UK/2018/0047821',
-    phone: '+91 88004 73232',
-    lat: 30.3183,
-    lon: 78.0312,
-    capacity: '600 meals/day'
+    name: 'Unforgotten Humanity Foundation (UHF)',
+    address: 'Doon Vihar Lane 1, Jakhan, Dehradun, Uttarakhand',
+    phone: '+91 8146465476',
+    email: 'humanity@uhfoundation.in',
+    lat: 30.3631,
+    lon: 78.0683,
+    capacity: 'Surplus-food redistribution initiative'
   },
-  {
-    id: 'ddn_ngo_3',
-    type: 'NGO',
-    name: 'Akshaya Patra Foundation – Dehradun',
-    address: 'Nehru Colony, Dharampur Road, Dehradun, Uttarakhand 248001',
-    darpan_id: 'UK/2009/0000144',
-    phone: '+91 135 275 1010',
-    lat: 30.3089,
-    lon: 78.0601,
-    capacity: '15,000 meals/day'
-  },
-  {
-    id: 'ddn_ngo_4',
-    type: 'NGO',
-    name: 'Goonj – Dehradun Distribution Hub',
-    address: 'Rispana Pul, Ballupur Road, Dehradun, Uttarakhand 248001',
-    darpan_id: 'UK/2012/0018273',
-    phone: '+91 98117 00923',
-    lat: 30.2937,
-    lon: 78.0741,
-    capacity: '300 meals/day'
-  },
-
-  // Dehradun Animal Shelters
   {
     id: 'ddn_animal_1',
     type: 'ANIMAL',
-    name: 'Dehradun SPCA & Animal Shelter',
-    address: 'Saharanpur Road, Near Doiwala, Dehradun, Uttarakhand 248001',
-    darpan_id: 'UK/AWBI/2011/007',
-    phone: '+91 135 271 5544',
-    lat: 30.2816,
-    lon: 78.0528,
-    capacity: '600 Stray Animals'
+    name: 'Krishna Dham Gaushala',
+    address: '5 km from Shiwalik College, Shimla Bypass Chowk, Near Shiwalik College, Hashanpur, Dehradun, Uttarakhand 248001',
+    phone: '+91 7409893833 / +91 9675283333',
+    email: 'krishnadhamgaushala@gmail.com',
+    lat: 30.3436,
+    lon: 77.8414,
+    capacity: 'Shelters 2000+ rescued cows'
   },
   {
     id: 'ddn_animal_2',
     type: 'ANIMAL',
-    name: 'Help in Suffering (HIS) Animal Hospital',
-    address: 'Prem Nagar, Hardwar Bypass Road, Dehradun, Uttarakhand 248007',
-    darpan_id: 'UK/AWBI/2008/003',
-    phone: '+91 135 278 8033',
-    lat: 30.3408,
-    lon: 77.9962,
-    capacity: '250 Animals'
+    name: 'Bhadraraj Gaudham Gaushala Samiti',
+    address: 'Village Charba, Sahaspur, Dehradun, Uttarakhand',
+    phone: '',
+    email: '',
+    lat: 30.4173,
+    lon: 77.8220,
+    capacity: 'Rescued cattle shelter & onsite biogas'
   },
-
-  // Dehradun Biogas Plants
   {
     id: 'ddn_biogas_1',
     type: 'BIOGAS',
-    name: 'Dehradun Municipal Biogas & Compost Plant',
-    address: 'Shastri Nagar Waste Treatment Site, Haridwar Road, Dehradun 248001',
-    darpan_id: 'MDDA/BIOG/2020/01',
-    phone: '+91 135 265 4321',
-    lat: 30.3512,
-    lon: 78.0163,
-    capacity: '80 Tonnes Organic/Day'
+    name: 'U.L.D.B. Biogas Plant, Kalsi',
+    address: 'Kalsi, Chakrata, District Dehradun, Uttarakhand',
+    phone: '',
+    email: '',
+    lat: 30.5849,
+    lon: 77.8828,
+    capacity: "60 m³ biogas plant, 6 kW capacity — government-run under Uttarakhand's Bio-Energy Scheme"
   },
   {
     id: 'ddn_biogas_2',
     type: 'BIOGAS',
-    name: 'Rispana River Biogas Recovery Unit',
-    address: 'Rispana Nagar, Balawala, Dehradun, Uttarakhand 248001',
-    darpan_id: 'DOON/BIOG/2022/02',
-    phone: '+91 135 271 9900',
-    lat: 30.2789,
-    lon: 78.0876,
-    capacity: '40 Tonnes/Day'
+    name: 'U.L.D.B. Biogas Plant, Shyampur',
+    address: 'Shyampur, Rishikesh, District Dehradun, Uttarakhand',
+    phone: '',
+    email: '',
+    lat: 30.0633,
+    lon: 78.2353,
+    capacity: '25 m³ biogas plant, 3 kW capacity'
+  },
+  {
+    id: 'ddn_biogas_3',
+    type: 'BIOGAS',
+    name: 'Bhadraraj Gaudham Biogas Plant',
+    address: 'Village Charba, Sahaspur, Dehradun',
+    phone: '',
+    email: '',
+    lat: 30.4173,
+    lon: 77.8220,
+    capacity: '35 m³ biogas plant, 4 kW capacity'
+  },
+  {
+    id: 'ddn_biogas_4',
+    type: 'BIOGAS',
+    name: 'Dehradun Waste Management Pvt Ltd (DWMPL) — Shishambada RDF Plant',
+    address: 'Shishambada, Vikasnagar, Dehradun, Uttarakhand',
+    phone: '',
+    email: '',
+    lat: 30.3300,
+    lon: 77.8711,
+    capacity: 'Large-scale municipal RDF-based waste-to-energy facility'
   }
 ];
 
@@ -232,13 +228,7 @@ export const VERIFIED_NGO_REGISTRY = {
   'DL/2022/0319482': 'Roti Bank Trust (South Delhi)',
   'UP/2021/0182749': 'Asha Deep Shelter Society',
   'DL/2024/008194':  'Delhi Community Rescue Network',
-  'DL/AWBI/2019/081': 'Delhi Gaushala & Stray Rescue Society',
-  'UK/2015/0092341': 'SRSHTI Foundation Dehradun',
-  'UK/2018/0047821': 'Robin Hood Army – Dehradun Chapter',
-  'UK/2009/0000144': 'Akshaya Patra Foundation – Dehradun',
-  'UK/2012/0018273': 'Goonj – Dehradun Distribution Hub',
-  'UK/AWBI/2011/007': 'Dehradun SPCA & Animal Shelter',
-  'UK/AWBI/2008/003': 'Help in Suffering (HIS) Animal Hospital'
+  'DL/AWBI/2019/081': 'Delhi Gaushala & Stray Rescue Society'
 };
 
 export function calculateDistance(lat1, lon1, lat2, lon2) {
