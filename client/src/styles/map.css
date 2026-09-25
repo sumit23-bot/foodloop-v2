@@ -291,17 +291,73 @@
   line-height: 1.5;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 768px) {
   .map-container-layout {
-    flex-direction: column-reverse;
+    flex-direction: column;
+    height: calc(100vh - 65px);
   }
   .map-sidebar {
     width: 100%;
     height: 45%;
     border-right: none;
-    border-top: 1.5px solid #334155;
+    border-bottom: 1.5px solid #334155;
   }
   #foodloop-map {
+    width: 100%;
     height: 55%;
+  }
+  .map-header {
+    padding: 10px 16px;
+  }
+  .header-controls {
+    gap: 8px;
+  }
+  .btn-nav-back,
+  .btn-recenter {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .map-header {
+    padding: 8px 12px;
+  }
+  .brand-link {
+    font-size: 18px;
+  }
+  .header-controls {
+    gap: 6px;
+  }
+  .btn-nav-back {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  .btn-recenter {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+  .sidebar-header {
+    padding: 12px 14px;
+  }
+  .sidebar-header h2 {
+    font-size: 18px;
+  }
+  .filter-pills {
+    padding: 8px 12px;
+    gap: 4px;
+  }
+  .filter-btn {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+  .locations-list {
+    padding: 10px 12px;
+  }
+  .location-card {
+    padding: 10px;
+  }
+  .loc-title {
+    font-size: 13px;
   }
 }

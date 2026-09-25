@@ -69,6 +69,7 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 16px 0;
+  position: relative;
 }
 
 .brand {
@@ -622,9 +623,232 @@ input:focus, select:focus, textarea:focus {
 }
 .suggest-item:hover { background: var(--surface-hover); }
 
-@media (max-width: 868px) {
-  .hero-grid, .hub-grid, .contact-grid { grid-template-columns: 1fr; }
-  .main-nav { display: none; }
-  .menu-toggle { display: block; background: transparent; border: none; color: #fff; font-size: 22px; }
-  #demo-persona-bar { bottom: 16px; right: 16px; left: auto; transform: none; }
+/* ================================================== */
+/* RESPONSIVE DESIGN BREAKPOINTS */
+/* ================================================== */
+
+/* Tablet & Mobile Breakpoint (<= 768px) */
+@media (max-width: 768px) {
+  /* Layout Grids -> Single Column Stacking */
+  .hero-grid,
+  .hub-grid,
+  .contact-grid,
+  .impact-row,
+  .action-grid,
+  .steps {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  /* Section Spacing */
+  .hero {
+    padding: 40px 0 30px 0;
+  }
+  .section {
+    padding: 48px 0;
+  }
+  .hero-copy h1 {
+    font-size: 34px;
+    line-height: 1.25;
+  }
+  .section-heading h2 {
+    font-size: 28px;
+  }
+
+  /* Navbar Mobile Drawer */
+  .menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 6px;
+  }
+  .main-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: rgba(11, 15, 25, 0.98);
+    backdrop-filter: blur(16px);
+    border-bottom: 1.5px solid var(--border-medium);
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+    gap: 14px;
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.7);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+  }
+  .main-nav.active {
+    display: flex;
+  }
+  .main-nav a:not(.button) {
+    font-size: 15px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .main-nav .button {
+    justify-content: center;
+    width: 100%;
+  }
+  .main-nav #nav-auth-container {
+    width: 100%;
+  }
+  .main-nav #nav-auth-container > div {
+    display: flex !important;
+    width: 100%;
+    gap: 8px;
+  }
+  .main-nav #nav-auth-container button {
+    justify-content: center;
+  }
+  .main-nav #nav-auth-container .button-outline {
+    flex: 1;
+  }
+
+  /* Footer Stacking */
+  .footer-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .footer-bottom {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+
+  /* Floating Demo Persona Bar */
+  #demo-persona-bar {
+    bottom: 14px;
+    right: 14px;
+    left: 14px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+/* Phone Breakpoint (<= 480px) */
+@media (max-width: 480px) {
+  .hero-copy h1 {
+    font-size: 27px;
+  }
+  .hero-text {
+    font-size: 14px;
+  }
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .hero-actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+  .trust-line {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Impact Panel */
+  .impact-panel {
+    padding: 18px;
+  }
+  .impact-feature strong {
+    font-size: 26px;
+  }
+
+  /* Donor Form Full Width Adjustments */
+  .donor-form {
+    padding: 18px 14px;
+    border-radius: 12px;
+  }
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .preset-btns {
+    gap: 6px;
+  }
+  .preset-btn {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  .proof-toggle-btns {
+    flex-wrap: wrap;
+  }
+  input, select, textarea {
+    font-size: 14px;
+    padding: 11px 14px;
+  }
+  .submit-button {
+    font-size: 14px;
+    padding: 12px;
+  }
+
+  /* Feed Panel & Cards */
+  .feed-panel {
+    padding: 18px 14px;
+    border-radius: 12px;
+  }
+  .feed-heading {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .feed-card {
+    padding: 12px !important;
+  }
+  .feed-card > div {
+    flex-direction: column;
+  }
+  .feed-card img {
+    width: 100% !important;
+    height: 140px !important;
+  }
+
+  /* Contact Form & Helpline */
+  .contact-section {
+    padding: 50px 0;
+  }
+  .contact-form {
+    padding: 20px 16px;
+    border-radius: 12px;
+  }
+  .helpline-card {
+    flex-direction: column;
+    text-align: center;
+    padding: 16px;
+  }
+  .helpline-phone {
+    font-size: 18px;
+  }
+
+  /* Modals */
+  .auth-modal-card,
+  .dashboard-modal-card,
+  .otp-modal-card,
+  .qr-modal-card {
+    padding: 18px;
+    border-radius: 14px;
+  }
+  .dash-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .dash-user-wrap {
+    flex-direction: column;
+    text-align: center;
+  }
+  .modal-btn-row {
+    flex-direction: column;
+  }
+  #otp-input-field {
+    width: 100%;
+    max-width: 160px;
+  }
 }
