@@ -34,11 +34,25 @@ export default function App() {
   // User & Auth State
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('foodloop_auth_user') || 'null');
+      const user = JSON.parse(localStorage.getItem('foodloop_auth_user') || 'null');
+      if (user && !localStorage.getItem('foodloop_auth_token')) {
+        const token = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(user))));
+        localStorage.setItem('foodloop_auth_token', token);
+      }
+      return user;
     } catch (_) {
       return null;
     }
   });
+
+  const getAuthToken = (user = currentUser) => {
+    let token = localStorage.getItem('foodloop_auth_token');
+    if (!token && user) {
+      token = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(user))));
+      localStorage.setItem('foodloop_auth_token', token);
+    }
+    return token;
+  };
 
   // Listings & Portal State
   const [listings, setListings] = useState([]);
@@ -107,7 +121,7 @@ export default function App() {
     if (!pendingDonation) return;
 
     try {
-      const token = localStorage.getItem('foodloop_auth_token');
+      const token = getAuthToken();
       const res = await fetch('/api/donations', {
         method: 'POST',
         headers: {
@@ -147,22 +161,34 @@ export default function App() {
       return;
     }
 
+    const orgName = currentUser.organization || currentUser.name || 'Verified NGO Partner';
+    const orgPhone = currentUser.phone || '';
+    const orgDarpan = currentUser.ngo_darpan_id || currentUser.darpan_id || '';
+    const listingId = item.id || item._id;
+
     try {
-      const token = localStorage.getItem('foodloop_auth_token');
-      const res = await fetch(`/api/donations/${item.id}/claim`, {
+      const token = getAuthToken();
+      const res = await fetch(`/api/donations/${listingId}/claim`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
         body: JSON.stringify({
-          ngo_name: currentUser.organization || currentUser.name,
-          darpan_id: currentUser.ngo_darpan_id || currentUser.darpan_id || ''
+          ngo_name: orgName,
+          claimant_org: orgName,
+          claimant_phone: orgPhone,
+          darpan_id: orgDarpan
         })
       });
 
       if (res.ok) {
-        showToast(`✅ Pickup claimed by ${currentUser.organization || currentUser.name}!`);
+        showToast(`✅ Pickup claimed by ${orgName}!`);
+        // Immediate optimistic UI update
+        setListings(prev => prev.map(l => (String(l.id) === String(listingId) || String(l._id) === String(listingId)) 
+          ? { ...l, status: 'CLAIMED', claimed_by: orgName, claimed_by_ngo: orgName } 
+          : l
+        ));
         loadListings();
       } else {
         const d = await res.json();
@@ -170,8 +196,11 @@ export default function App() {
       }
     } catch (err) {
       // Offline fallback
-      setListings(prev => prev.map(l => l.id === item.id ? { ...l, status: 'CLAIMED', claimed_by: currentUser.name } : l));
-      showToast('✅ Pickup claimed!');
+      setListings(prev => prev.map(l => (String(l.id) === String(listingId) || String(l._id) === String(listingId)) 
+        ? { ...l, status: 'CLAIMED', claimed_by: orgName, claimed_by_ngo: orgName } 
+        : l
+      ));
+      showToast(`✅ Pickup claimed by ${orgName}!`);
     }
   };
 
@@ -224,8 +253,10 @@ export default function App() {
         role: 'DONOR',
         phone: '9876543210'
       };
+      const demoToken = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(demoDonor))));
       setCurrentUser(demoDonor);
       localStorage.setItem('foodloop_auth_user', JSON.stringify(demoDonor));
+      localStorage.setItem('foodloop_auth_token', demoToken);
       showToast('⚡ Switched to Demo Persona: 🍛 Food Donor');
     } else if (persona === 'NGO') {
       const demoNGO = {
@@ -235,8 +266,10 @@ export default function App() {
         darpan_id: 'DL/2018/0192831',
         phone: '8800247247'
       };
+      const demoToken = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(demoNGO))));
       setCurrentUser(demoNGO);
       localStorage.setItem('foodloop_auth_user', JSON.stringify(demoNGO));
+      localStorage.setItem('foodloop_auth_token', demoToken);
       showToast('⚡ Switched to Demo Persona: 🏛️ Verified NGO');
     } else if (persona === 'ANIMAL') {
       const demoAnimal = {
@@ -246,8 +279,10 @@ export default function App() {
         darpan_id: 'DL/AWBI/2019/081',
         phone: '9855566778'
       };
+      const demoToken = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(demoAnimal))));
       setCurrentUser(demoAnimal);
       localStorage.setItem('foodloop_auth_user', JSON.stringify(demoAnimal));
+      localStorage.setItem('foodloop_auth_token', demoToken);
       showToast('⚡ Switched to Demo Persona: 🐾 Animal Shelter');
     } else {
       setCurrentUser(null);
@@ -440,22 +475,26 @@ export default function App() {
             listing={scannerListing}
             onScanSuccess={async (scannedListing) => {
               showToast('✅ QR Handshake verified successfully!');
-              if (scannedListing && scannedListing.id) {
+              const listingId = scannedListing?.id || scannedListing?._id;
+              if (listingId) {
                 try {
-                  const token = localStorage.getItem('foodloop_auth_token');
-                  await fetch(`/api/donations/${scannedListing.id}/claim`, {
+                  const token = getAuthToken();
+                  const orgName = currentUser?.organization || currentUser?.name || 'Verified NGO Partner';
+                  await fetch(`/api/donations/${listingId}/claim`, {
                     method: 'PATCH',
                     headers: {
                       'Content-Type': 'application/json',
                       'Authorization': token ? `Bearer ${token}` : ''
                     },
                     body: JSON.stringify({
-                      claimant_org: currentUser?.organization || currentUser?.name || 'Verified NGO Partner',
-                      claimant_phone: currentUser?.phone || ''
+                      claimant_org: orgName,
+                      ngo_name: orgName,
+                      claimant_phone: currentUser?.phone || '',
+                      darpan_id: currentUser?.ngo_darpan_id || currentUser?.darpan_id || ''
                     })
                   });
                 } catch (_) {}
-                setListings(prev => prev.map(l => (String(l.id) === String(scannedListing.id) || String(l._id) === String(scannedListing.id)) ? { ...l, status: 'CLAIMED', claimed_by: currentUser?.organization || currentUser?.name || 'Verified NGO' } : l));
+                setListings(prev => prev.map(l => (String(l.id) === String(listingId) || String(l._id) === String(listingId)) ? { ...l, status: 'CLAIMED', claimed_by: currentUser?.organization || currentUser?.name || 'Verified NGO' } : l));
               }
               loadListings();
             }}
