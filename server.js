@@ -438,9 +438,9 @@ app.post('/api/ai/chat', async (req, res) => {
 // 4. AI FOOD VISION VERIFICATION ROUTE (Strict Structured JSON)
 // --------------------------------------------------
 
-// Helper: call Gemini vision with retry + model fallback for 503
+// Helper: call Gemini vision with fast model cascade + per-model timeout
 async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
-  const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-1.5-flash'];
+  const MODELS = ['gemini-3-flash-preview', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.8-flash'];
   const payload = {
     contents: [{
       parts: [
@@ -448,31 +448,23 @@ async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
         { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } }
       ]
     }],
-    generationConfig: { temperature: 0.1, maxOutputTokens: 400 }
+    generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
   };
 
   for (const model of MODELS) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
       const aiRes = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(6000)
       });
       if (aiRes.ok) return aiRes;
       const body = await aiRes.text();
-      if (aiRes.status === 503 && attempt < 3) {
-        console.warn(`Gemini ${model} 503 — retrying in 2s (attempt ${attempt}/3)...`);
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      if (aiRes.status === 503) {
-        console.warn(`Gemini ${model} still 503 after 3 attempts — trying next model`);
-        break; // try next model
-      }
-      // Any other non-OK status: log and give up for this model
-      console.warn(`Gemini ${model} non-OK ${aiRes.status}:`, body.substring(0, 200));
-      break;
+      console.warn(`Gemini ${model} returned ${aiRes.status}:`, body.substring(0, 160));
+    } catch (modelErr) {
+      console.warn(`Gemini ${model} request error (${modelErr.name}):`, modelErr.message);
     }
   }
   return null; // all models failed
@@ -494,16 +486,21 @@ app.post('/api/ai/verify-food', async (req, res) => {
   }
 
   try {
-    const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const rawBase64 = String(imageBase64)
+      .replace(/^data:image\/[^;]+;base64,/, '')
+      .replace(/\s+/g, '');
 
     // Compress image to max 640px to reduce payload size (prevents 503 overload)
     let cleanBase64 = rawBase64;
     try {
-      const compressedBuf = await sharp(Buffer.from(rawBase64, 'base64'))
-        .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 75 })
-        .toBuffer();
-      cleanBase64 = compressedBuf.toString('base64');
+      const inputBuf = Buffer.from(rawBase64, 'base64');
+      if (inputBuf.length > 0) {
+        const compressedBuf = await sharp(inputBuf)
+          .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        cleanBase64 = compressedBuf.toString('base64');
+      }
     } catch (compressErr) {
       // If sharp fails (e.g. SVG/non-jpeg), use raw base64 as-is
       console.warn('Image compression skipped:', compressErr.message);
@@ -619,15 +616,20 @@ app.post('/api/ai/verify-clothing', async (req, res) => {
   }
 
   try {
-    const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const rawBase64 = String(imageBase64)
+      .replace(/^data:image\/[^;]+;base64,/, '')
+      .replace(/\s+/g, '');
 
     let cleanBase64 = rawBase64;
     try {
-      const compressedBuf = await sharp(Buffer.from(rawBase64, 'base64'))
-        .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 75 })
-        .toBuffer();
-      cleanBase64 = compressedBuf.toString('base64');
+      const inputBuf = Buffer.from(rawBase64, 'base64');
+      if (inputBuf.length > 0) {
+        const compressedBuf = await sharp(inputBuf)
+          .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        cleanBase64 = compressedBuf.toString('base64');
+      }
     } catch (compressErr) {
       console.warn('Clothing image compression skipped:', compressErr.message);
     }

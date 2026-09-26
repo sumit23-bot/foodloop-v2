@@ -281,16 +281,58 @@ export default function DonorForm({
     });
   };
 
+  const downscaleImageForVerification = (dataUrl, maxDim = 800, quality = 0.82) => {
+    return new Promise((resolve) => {
+      if (!dataUrl || typeof dataUrl !== 'string') return resolve(dataUrl);
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width <= maxDim && height <= maxDim) {
+          return resolve(dataUrl);
+        }
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
   const capturePhoto = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
+    const vw = video.videoWidth || 640;
+    const vh = video.videoHeight || 480;
+    const maxDim = 800;
+    let width = vw;
+    let height = vh;
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, width, height);
 
-    const base64 = canvas.toDataURL('image/jpeg', 0.90);
+    const base64 = canvas.toDataURL('image/jpeg', 0.85);
     stopCamera();
     setImagePreview(base64);
     setIsLiveCapture(true);
@@ -307,12 +349,14 @@ export default function DonorForm({
     }
 
     const reader = new FileReader();
-    reader.onload = (uploadEvt) => {
-      const base64 = uploadEvt.target.result;
+    reader.onload = async (uploadEvt) => {
+      const originalBase64 = uploadEvt.target.result;
       stopCamera();
-      setImagePreview(base64);
+      // Downscale immediately so memory and upload payload are tiny
+      const readyBase64 = await downscaleImageForVerification(originalBase64, 800, 0.82);
+      setImagePreview(readyBase64);
       setIsLiveCapture(false);
-      triggerAIVerification(base64);
+      triggerAIVerification(readyBase64);
     };
     reader.readAsDataURL(file);
   };
@@ -331,8 +375,9 @@ export default function DonorForm({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // AI Verification Routine
+  // AI Verification Routine with 12s Client Timeout
   const triggerAIVerification = async (base64) => {
+    if (!base64) return;
     setAiState({ 
       status: 'LOADING', 
       confidence: 0, 
@@ -341,12 +386,22 @@ export default function DonorForm({
       quantity_level: 'BULK_SURPLUS', 
       estimated_servings_range: '' 
     });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
     try {
+      // Ensure image is reasonably sized before transmission
+      const payloadBase64 = await downscaleImageForVerification(base64, 800, 0.82);
+
       const res = await fetch('/api/ai/verify-food', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64 })
+        body: JSON.stringify({ imageBase64: payloadBase64 }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+
       const data = await res.json();
       if (data.is_food === true && (data.confidence ?? 0) >= 60) {
         setAiState({ 
@@ -368,11 +423,14 @@ export default function DonorForm({
         });
       }
     } catch (err) {
-      console.warn('AI verification failed:', err);
+      clearTimeout(timeoutId);
+      console.warn('AI verification failed or timed out:', err);
       setAiState({ 
         status: 'REJECTED', 
         confidence: 0, 
-        reason: 'Verification service unreachable.',
+        reason: err.name === 'AbortError' 
+          ? 'Verification took too long. Click Retry to check again.' 
+          : 'Verification service error. Click Retry to check again.',
         is_bulk: false,
         quantity_level: 'LOW_QUANTITY',
         estimated_servings_range: ''
@@ -774,26 +832,48 @@ export default function DonorForm({
                     <span>{aiState.reason || 'Image does not clearly show edible surplus food.'}</span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={retakePhoto}
-                  style={{
-                    background: '#ef4444',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '6px 12px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <i className="fa-solid fa-rotate-left"></i> Retake
-                </button>
+                <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => triggerAIVerification(imagePreview)}
+                    style={{
+                      background: '#334155',
+                      color: '#fff',
+                      border: '1px solid #475569',
+                      borderRadius: '6px',
+                      padding: '6px 10px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <i className="fa-solid fa-arrows-rotate"></i> Retry Check
+                  </button>
+                  <button
+                    type="button"
+                    onClick={retakePhoto}
+                    style={{
+                      background: '#ef4444',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '6px 12px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <i className="fa-solid fa-rotate-left"></i> Retake
+                  </button>
+                </div>
               </div>
             )}
 
