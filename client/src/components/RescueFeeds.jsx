@@ -147,8 +147,27 @@ export default function RescueFeeds({
                       </span>
                     </div>
 
-                    <p style={{ fontSize: '13px', color: '#cbd5e1', marginBottom: '6px' }}>
-                      <strong>Qty:</strong> {item.quantity} · <strong>Donor:</strong> {item.donor_name}
+                    <p style={{ fontSize: '13px', color: '#cbd5e1', marginBottom: '6px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                      <span><strong>Qty:</strong> {item.quantity} · <strong>Donor:</strong> {item.donor_name}</span>
+                      {item.is_bulk !== undefined && (
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: item.is_bulk ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                          color: item.is_bulk ? '#34d399' : '#fbbf24',
+                          border: item.is_bulk ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <i className={item.is_bulk ? "fa-solid fa-utensils" : "fa-solid fa-triangle-exclamation"}></i>
+                          {item.is_bulk 
+                            ? `Bulk Surplus (${item.estimated_servings_range || '10+ servings'})` 
+                            : `Small Portion (${item.estimated_servings_range || '1-4 servings'})`}
+                        </span>
+                      )}
                     </p>
 
                     {/* Pickup Address & General Location Area */}

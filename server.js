@@ -163,6 +163,10 @@ const DonationSchema = new mongoose.Schema({
   },
   is_verified: { type: Boolean, default: true },
   is_food_verified: { type: Boolean, default: true },
+  is_bulk: { type: Boolean, default: true },
+  quantity_level: { type: String, default: 'BULK_SURPLUS' },
+  estimated_servings_range: { type: String, default: '' },
+  ai_portion_reason: { type: String, default: '' },
   is_live_capture: { type: Boolean, default: true },
   ai_detected_class: { type: String, default: 'Live Hardware Camera Verified' },
   trust_score: { type: Number, default: 100 },
@@ -436,7 +440,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
 // Helper: call Gemini vision with retry + model fallback for 503
 async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
-  const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+  const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-1.5-flash'];
   const payload = {
     contents: [{
       parts: [
@@ -444,7 +448,7 @@ async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
         { inlineData: { mimeType: 'image/jpeg', data: cleanBase64 } }
       ]
     }],
-    generationConfig: { temperature: 0.2, maxOutputTokens: 400 }
+    generationConfig: { temperature: 0.1, maxOutputTokens: 400 }
   };
 
   for (const model of MODELS) {
@@ -477,7 +481,7 @@ async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
 app.post('/api/ai/verify-food', async (req, res) => {
   const { imageBase64 } = req.body;
   if (!imageBase64) {
-    return res.status(400).json({ is_food: false, confidence: 0, reason: 'No image provided.' });
+    return res.status(400).json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'No image provided.' });
   }
 
   const isKeyConfigured = GEMINI_API_KEY &&
@@ -486,7 +490,7 @@ app.post('/api/ai/verify-food', async (req, res) => {
 
   if (!isKeyConfigured) {
     console.warn('⚠️ GEMINI_API_KEY not configured — verification disabled.');
-    return res.json({ is_food: false, confidence: 0, reason: 'Could not verify — please retake or re-upload the photo.' });
+    return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Could not verify — please retake or re-upload the photo.' });
   }
 
   try {
@@ -505,12 +509,34 @@ app.post('/api/ai/verify-food', async (req, res) => {
       console.warn('Image compression skipped:', compressErr.message);
     }
 
-    const promptText = `You are a strict food-safety image inspector. Analyze the attached image and respond with ONLY a valid JSON object, no other text, no markdown formatting, no backticks — just the raw JSON, in exactly this shape: {"is_food": true or false, "confidence": integer from 0 to 100, "reason": "one short sentence"} Rules: - is_food must be true ONLY if the image clearly shows real, physical, edible food (a cooked meal, raw ingredients, packaged food items, etc.) - is_food must be false for: people, objects, screenshots, text, empty plates or containers, drawings/cartoons, animals, vehicles, or anything that is not genuinely food - Be conservative: if you are not reasonably confident, set is_food to false and lower the confidence score accordingly`;
+    const promptText = `You are a strict food-safety and portion volume inspector for FoodLoop, a rescue platform for banquet, catering, and restaurant surplus.
+Analyze the attached food image and evaluate BOTH food authenticity AND portion volume / quantity scale.
+
+Respond with ONLY a valid JSON object, no other text, no markdown formatting, no backticks, in exactly this shape:
+{
+  "is_food": true or false,
+  "confidence": integer from 0 to 100,
+  "is_bulk": true or false,
+  "quantity_level": "BULK_SURPLUS" or "MODERATE" or "LOW_QUANTITY",
+  "estimated_servings_range": "e.g. 1-2 servings" or "e.g. 5-9 servings" or "e.g. 20-30 servings",
+  "reason": "one short sentence stating what the food is and whether it is bulk surplus or a small/single portion"
+}
+
+Rules:
+- is_food must be true ONLY if the image clearly shows real, physical, edible food (a cooked meal, raw ingredients, packaged food items, etc.).
+- is_food must be false for: people, objects, screenshots, text, empty plates or containers, drawings/cartoons, animals, vehicles, or anything non-edible.
+- is_bulk must be true ONLY if the image visibly shows bulk surplus food suitable for community rescue / shelter feeding (e.g. large cooking vessels/pots/degh, commercial chafing dishes, catering trays, bulk banquet dishes, stacks of 10+ meal packets, wholesale crates).
+- is_bulk must be false if it is a single plate, a single bowl, a small snack, individual beverage, or a small household portion (<10 servings).
+- quantity_level must be:
+  * "BULK_SURPLUS" if 10 or more servings / large catering volume.
+  * "MODERATE" if 5 to 9 servings.
+  * "LOW_QUANTITY" if 1 to 4 servings (individual meal, snack, single plate/dish).
+- Be conservative: if you are not reasonably confident, set is_food to false and lower the confidence score accordingly.`;
 
     const aiRes = await callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY);
 
     if (!aiRes) {
-      return res.json({ is_food: false, confidence: 0, reason: 'Could not verify — please retake or re-upload the photo.' });
+      return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Could not verify — please retake or re-upload the photo.' });
     }
 
     const aiData = await aiRes.json();
@@ -529,25 +555,40 @@ app.post('/api/ai/verify-food', async (req, res) => {
 
     if (!parsed) {
       console.warn('Gemini returned non-JSON:', reply.substring(0, 200));
-      return res.json({ is_food: false, confidence: 0, reason: 'Could not verify — please retake or re-upload the photo.' });
+      return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Could not verify — please retake or re-upload the photo.' });
     }
 
     const rawIsFood = parsed.is_food === true;
     const confidence = typeof parsed.confidence === 'number'
       ? Math.round(parsed.confidence)
       : (parseInt(String(parsed.confidence), 10) || 0);
-    const reason = String(parsed.reason || (rawIsFood ? 'Verified edible food item.' : 'Image does not appear to show food.'));
+
+    const isBulk = parsed.is_bulk === true;
+    const validQtyLevels = ['BULK_SURPLUS', 'MODERATE', 'LOW_QUANTITY'];
+    const quantityLevel = validQtyLevels.includes(parsed.quantity_level)
+      ? parsed.quantity_level
+      : (isBulk ? 'BULK_SURPLUS' : 'LOW_QUANTITY');
+    const estimatedServings = String(parsed.estimated_servings_range || (isBulk ? '15+ servings' : '1-2 servings'));
+    const reason = String(parsed.reason || (rawIsFood ? (isBulk ? 'Bulk surplus food verified.' : 'Low quantity/single portion detected.') : 'Image does not appear to show food.'));
 
     // Verified ONLY if is_food === true AND confidence >= 60
     const isVerified = rawIsFood && confidence >= 60;
 
-    return res.json({ is_food: isVerified, confidence, reason });
+    return res.json({
+      is_food: isVerified,
+      confidence,
+      is_bulk: isBulk,
+      quantity_level: quantityLevel,
+      estimated_servings_range: estimatedServings,
+      reason
+    });
 
   } catch (err) {
     console.warn('Gemini Vision call threw:', err.message);
-    return res.json({ is_food: false, confidence: 0, reason: 'Could not verify — please retake or re-upload the photo.' });
+    return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Could not verify — please retake or re-upload the photo.' });
   }
 });
+
 
 // --------------------------------------------------
 // 4b. AI CLOTHING VISION VERIFICATION ROUTE (ClothesLoop)
@@ -985,6 +1026,10 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
     verification_code: verification_code || 'HW-AUTH',
     is_verified: true,
     is_food_verified: true,
+    is_bulk: req.body.is_bulk !== undefined ? Boolean(req.body.is_bulk) : true,
+    quantity_level: req.body.quantity_level || 'BULK_SURPLUS',
+    estimated_servings_range: req.body.estimated_servings_range || '',
+    ai_portion_reason: req.body.ai_portion_reason || '',
     is_live_capture: is_live_capture !== undefined ? Boolean(is_live_capture) : true,
     ai_detected_class: ai_detected_class || 'Live Hardware Camera Verified',
     trust_score: 100,

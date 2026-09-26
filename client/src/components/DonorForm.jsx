@@ -19,7 +19,14 @@ export default function DonorForm({
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
   const [isLiveCapture, setIsLiveCapture] = useState(false);
-  const [aiState, setAiState] = useState({ status: 'IDLE', confidence: 0, reason: '' }); // IDLE, LOADING, VERIFIED, REJECTED
+  const [aiState, setAiState] = useState({ 
+    status: 'IDLE', 
+    confidence: 0, 
+    reason: '',
+    is_bulk: true,
+    quantity_level: 'BULK_SURPLUS',
+    estimated_servings_range: ''
+  }); // IDLE, LOADING, VERIFIED, REJECTED
   
   // Geolocation & Autocomplete State
   const [customCoords, setCustomCoords] = useState(null);
@@ -313,13 +320,27 @@ export default function DonorForm({
   const retakePhoto = () => {
     setImagePreview('');
     setIsLiveCapture(false);
-    setAiState({ status: 'IDLE', confidence: 0, reason: '' });
+    setAiState({ 
+      status: 'IDLE', 
+      confidence: 0, 
+      reason: '', 
+      is_bulk: true, 
+      quantity_level: 'BULK_SURPLUS', 
+      estimated_servings_range: '' 
+    });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // AI Verification Routine
   const triggerAIVerification = async (base64) => {
-    setAiState({ status: 'LOADING', confidence: 0, reason: '' });
+    setAiState({ 
+      status: 'LOADING', 
+      confidence: 0, 
+      reason: '', 
+      is_bulk: true, 
+      quantity_level: 'BULK_SURPLUS', 
+      estimated_servings_range: '' 
+    });
     try {
       const res = await fetch('/api/ai/verify-food', {
         method: 'POST',
@@ -328,17 +349,34 @@ export default function DonorForm({
       });
       const data = await res.json();
       if (data.is_food === true && (data.confidence ?? 0) >= 60) {
-        setAiState({ status: 'VERIFIED', confidence: data.confidence, reason: data.reason });
+        setAiState({ 
+          status: 'VERIFIED', 
+          confidence: data.confidence, 
+          reason: data.reason,
+          is_bulk: data.is_bulk !== undefined ? data.is_bulk : true,
+          quantity_level: data.quantity_level || (data.is_bulk ? 'BULK_SURPLUS' : 'LOW_QUANTITY'),
+          estimated_servings_range: data.estimated_servings_range || ''
+        });
       } else {
         setAiState({ 
           status: 'REJECTED', 
           confidence: data.confidence || 0, 
-          reason: data.reason || 'Image does not clearly show food.' 
+          reason: data.reason || 'Image does not clearly show food.',
+          is_bulk: false,
+          quantity_level: 'LOW_QUANTITY',
+          estimated_servings_range: ''
         });
       }
     } catch (err) {
       console.warn('AI verification failed:', err);
-      setAiState({ status: 'REJECTED', confidence: 0, reason: 'Verification service unreachable.' });
+      setAiState({ 
+        status: 'REJECTED', 
+        confidence: 0, 
+        reason: 'Verification service unreachable.',
+        is_bulk: false,
+        quantity_level: 'LOW_QUANTITY',
+        estimated_servings_range: ''
+      });
     }
   };
 
@@ -377,6 +415,13 @@ export default function DonorForm({
       return;
     }
 
+    if (aiState.quantity_level === 'LOW_QUANTITY' || !aiState.is_bulk) {
+      const confirmLow = window.confirm(
+        `⚠️ Low Quantity Warning:\n\nThe AI analysis detected that this photo appears to show a small or single portion (${aiState.estimated_servings_range || '1-4 servings'}).\n\nFoodLoop is designed for bulk surplus rescue (10+ servings).\n\nDo you want to proceed with posting this donation anyway?`
+      );
+      if (!confirmLow) return;
+    }
+
     if (!address.trim()) {
       alert('⚠️ Please provide a pickup address or click "🎯 Use Live GPS".');
       return;
@@ -411,6 +456,10 @@ export default function DonorForm({
       verification_code: 'HW-AUTHENTICATED',
       coords: effectiveCoords,
       is_food_verified: true,
+      is_bulk: aiState.is_bulk !== undefined ? aiState.is_bulk : true,
+      quantity_level: aiState.quantity_level || (aiState.is_bulk ? 'BULK_SURPLUS' : 'LOW_QUANTITY'),
+      estimated_servings_range: aiState.estimated_servings_range || '',
+      ai_portion_reason: aiState.reason || '',
       is_live_capture: isLiveCapture,
       ai_detected_class: aiState.reason || 'AI Verified Food',
       trust_score: 100,
@@ -586,8 +635,8 @@ export default function DonorForm({
                     position: 'absolute',
                     top: '10px',
                     left: '10px',
-                    background: '#10b981',
-                    color: '#022c22',
+                    background: aiState.is_bulk ? '#10b981' : '#f59e0b',
+                    color: aiState.is_bulk ? '#022c22' : '#451a03',
                     padding: '5px 10px',
                     borderRadius: '6px',
                     fontSize: '11px',
@@ -598,7 +647,11 @@ export default function DonorForm({
                     gap: '6px',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
                   }}>
-                    <i className="fa-solid fa-circle-check"></i> Food Verified ({aiState.confidence}%)
+                    <i className={aiState.is_bulk ? "fa-solid fa-circle-check" : "fa-solid fa-triangle-exclamation"}></i>
+                    {aiState.is_bulk 
+                      ? `🍲 Bulk Surplus (${aiState.estimated_servings_range || `${aiState.confidence}%`})`
+                      : `⚠️ Low Quantity (${aiState.estimated_servings_range || 'Small Portion'})`
+                    }
                   </span>
                 )}
                 {aiState.status === 'REJECTED' && (
@@ -744,21 +797,49 @@ export default function DonorForm({
               </div>
             )}
 
-            {imagePreview && aiState.status === 'VERIFIED' && (
+            {imagePreview && aiState.status === 'VERIFIED' && aiState.is_bulk && (
               <div style={{
                 marginTop: '8px',
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
                 borderRadius: '8px',
-                padding: '8px 12px',
+                padding: '10px 14px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                gap: '10px',
                 fontSize: '12px',
                 color: '#34d399'
               }}>
-                <i className="fa-solid fa-circle-check" style={{ color: '#10b981' }}></i>
-                <span><strong>AI Food Verification Passed:</strong> Edible surplus food detected ({aiState.confidence}% confidence).</span>
+                <i className="fa-solid fa-circle-check" style={{ color: '#10b981', fontSize: '16px', flexShrink: 0 }}></i>
+                <div>
+                  <strong>AI Bulk Surplus Verified ({aiState.confidence}%): </strong>
+                  <span>{aiState.reason || `Commercial/catering bulk quantity confirmed (${aiState.estimated_servings_range || '10+ servings'}).`}</span>
+                </div>
+              </div>
+            )}
+
+            {imagePreview && aiState.status === 'VERIFIED' && !aiState.is_bulk && (
+              <div style={{
+                marginTop: '8px',
+                background: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.45)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                fontSize: '12px',
+                color: '#fcd34d'
+              }}>
+                <i className="fa-solid fa-triangle-exclamation" style={{ color: '#f59e0b', fontSize: '16px', marginTop: '2px', flexShrink: 0 }}></i>
+                <div style={{ lineHeight: 1.45 }}>
+                  <strong style={{ color: '#fbbf24' }}>
+                    Low Quantity / Small Portion Detected ({aiState.estimated_servings_range || '1-4 servings'}):
+                  </strong>
+                  <div style={{ color: '#fef3c7', marginTop: '3px' }}>
+                    {aiState.reason} FoodLoop is designed for bulk surplus rescue (10+ servings). If this is part of a larger batch, please upload a photo showing the bulk containers/vessels.
+                  </div>
+                </div>
               </div>
             )}
           </div>
