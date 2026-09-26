@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { TermsAndConditionsModal } from './Modals';
 
 export default function DonorForm({ 
   currentUser, 
@@ -26,6 +27,10 @@ export default function DonorForm({
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  
+  // Terms & Conditions Acceptance State
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [pendingDonationPayload, setPendingDonationPayload] = useState(null);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -413,7 +418,27 @@ export default function DonorForm({
       status: (parseInt(windowHours) === 1) ? 'DIVERTED_TO_ANIMALS' : 'AVAILABLE'
     };
 
-    onSubmitDonationInitiate(payload);
+    setPendingDonationPayload(payload);
+    setIsTermsModalOpen(true);
+  };
+
+  const handleAcceptTerms = ({ termsVersion, acceptedAt }) => {
+    setIsTermsModalOpen(false);
+    if (!pendingDonationPayload) return;
+
+    const payloadWithTerms = {
+      ...pendingDonationPayload,
+      termsAcceptance: {
+        version: termsVersion,
+        acceptedAt
+      }
+    };
+    setPendingDonationPayload(null);
+    onSubmitDonationInitiate(payloadWithTerms);
+  };
+
+  const handleCloseTerms = () => {
+    setIsTermsModalOpen(false);
   };
 
   return (
@@ -878,6 +903,12 @@ export default function DonorForm({
           <i className="fa-solid fa-shield-heart"></i> FoodLoop Network is verified under India NGO Darpan & Gaushala Rescue Protocol.
         </p>
       </form>
+
+      <TermsAndConditionsModal
+        isOpen={isTermsModalOpen}
+        onClose={handleCloseTerms}
+        onAccept={handleAcceptTerms}
+      />
     </div>
   );
 }
