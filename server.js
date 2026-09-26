@@ -300,6 +300,70 @@ let memoryDonations = [];
 let memoryClothes = [];
 let memoryContacts = [];
 let memoryBlacklist = new Set();
+let memoryIncidents = [];
+
+// Pure function: Food-Safety Incident Liability Resolution (Task 10)
+function resolveIncidentLiability(incident, verifiedBillAmount, donorAgreedToPay) {
+  const bill = Math.max(0, Number(verifiedBillAmount) || 0);
+  const severity = incident?.severity || '';
+  const isSevereOrLifeRisk = 
+    severity === 'Severe (hospitalization required)' || 
+    severity === 'Life-threatening (ICU / death)';
+
+  // If donor agreed to pay AND it's NOT a Severe/Life-threatening incident:
+  if (donorAgreedToPay === true && !isSevereOrLifeRisk) {
+    return {
+      donorOwes: bill,
+      platformContribution: 0,
+      legalEscalation: false,
+      legalBasis: []
+    };
+  }
+
+  // Otherwise (donor refused OR severity is Severe / Life-threatening):
+  return {
+    donorOwes: Math.round(bill * 0.8 * 100) / 100,
+    platformContribution: Math.round(bill * 0.2 * 100) / 100,
+    legalEscalation: true,
+    legalBasis: ['BNS Section 274', 'BNS Section 275', 'FSSA Section 59']
+  };
+}
+
+// Food-Safety Incident Schema
+const IncidentSchema = new mongoose.Schema({
+  id: { type: String, required: true },
+  listing_id: { type: String, required: true },
+  listing_title: { type: String, default: '' },
+  donor_id: { type: String, default: '' },
+  donor_name: { type: String, default: '' },
+  donor_phone: { type: String, default: '' },
+  reporter_id: { type: String, default: '' },
+  reporter_name: { type: String, default: '' },
+  reporter_phone: { type: String, default: '' },
+  reporter_org: { type: String, default: '' },
+  description: { type: String, required: true },
+  severity: { 
+    type: String, 
+    enum: [
+      'Mild (no medical attention needed)',
+      'Moderate (outpatient treatment)',
+      'Severe (hospitalization required)',
+      'Life-threatening (ICU / death)'
+    ],
+    required: true 
+  },
+  documents: [{ type: String }],
+  status: { type: String, enum: ['REPORTED', 'CONFIRMED', 'REJECTED'], default: 'REPORTED' },
+  verified_bill_amount: { type: Number, default: 0 },
+  donor_agreed_to_pay: { type: Boolean, default: null },
+  donor_owes: { type: Number, default: 0 },
+  platform_contribution: { type: Number, default: 0 },
+  legal_escalation: { type: Boolean, default: false },
+  legal_basis: [{ type: String }],
+  resolved_at: { type: Date },
+  created_at: { type: Date, default: Date.now }
+}, { strict: false });
+const Incident = mongoose.model('Incident', IncidentSchema);
 
 // --------------------------------------------------
 // 3. GEMINI AI ASSISTANT ENDPOINT
@@ -1318,8 +1382,226 @@ app.post('/api/clothes/:id/report-fake', donationSubmissionLimiter, requireAuth,
 });
 
 // --------------------------------------------------
+// 7b. FOOD-SAFETY INCIDENT MANAGEMENT & LIABILITY CONTROLLER (Task 10)
+// --------------------------------------------------
+
+// 1. Submit Food-Safety Incident Report (NGO Claimant)
+app.post('/api/incidents', requireAuth, async (req, res) => {
+  const { listingId, reporterId, description, severity, documents } = req.body;
+
+  if (!listingId || !description || !severity) {
+    return res.status(400).json({ error: 'listingId, description, and severity are required.' });
+  }
+
+  // Look up the listing to retrieve unalterable donor info
+  let listing = null;
+  try {
+    if (mongoose.Types.ObjectId.isValid(listingId)) {
+      listing = await Donation.findById(listingId);
+    }
+    if (!listing) {
+      listing = await Donation.findOne({ $or: [{ id: listingId }, { _id: listingId }] });
+    }
+  } catch (_) {}
+
+  if (!listing) {
+    listing = memoryDonations.find(d => String(d.id) === String(listingId) || String(d._id) === String(listingId));
+  }
+
+  const listingTitle = listing?.title || 'Surplus Food Donation';
+  const donorId = listing?.donor_id || '';
+  const donorName = listing?.donor_name || 'Registered Food Donor';
+  const donorPhone = listing?.phone || '';
+
+  const reporterName = req.user?.name || req.body.reporter_name || 'Verified NGO Partner';
+  const reporterPhone = req.user?.phone || req.body.reporter_phone || '';
+  const reporterOrg = req.user?.org_name || req.user?.organization || 'Claiming NGO Partner';
+
+  const incidentData = {
+    id: 'inc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    listing_id: String(listingId),
+    listingId: String(listingId),
+    listing_title: listingTitle,
+    listingTitle: listingTitle,
+    donor_id: donorId,
+    donorId: donorId,
+    donor_name: donorName,
+    donorName: donorName,
+    donor_phone: donorPhone,
+    donorPhone: donorPhone,
+    reporter_id: reporterId || req.user?.id || '',
+    reporterId: reporterId || req.user?.id || '',
+    reporter_name: reporterName,
+    reporterName: reporterName,
+    reporter_phone: reporterPhone,
+    reporterPhone: reporterPhone,
+    reporter_org: reporterOrg,
+    reporterOrg: reporterOrg,
+    description: String(description).trim(),
+    severity: String(severity).trim(),
+    documents: Array.isArray(documents) ? documents : [],
+    status: 'REPORTED',
+    verified_bill_amount: 0,
+    verifiedBillAmount: 0,
+    donor_agreed_to_pay: null,
+    donorAgreedToPay: null,
+    donor_owes: 0,
+    donorOwes: 0,
+    platform_contribution: 0,
+    platformContribution: 0,
+    legal_escalation: false,
+    legalEscalation: false,
+    legal_basis: [],
+    legalBasis: [],
+    created_at: new Date(),
+    createdAt: new Date()
+  };
+
+  try {
+    const newInc = new Incident(incidentData);
+    await newInc.save();
+    memoryIncidents.unshift(incidentData);
+    return res.status(201).json(newInc);
+  } catch (err) {
+    memoryIncidents.unshift(incidentData);
+    return res.status(201).json(incidentData);
+  }
+});
+
+// 2. Fetch Incidents List (Admin & Transparency Status)
+app.get('/api/incidents', async (req, res) => {
+  const { listingId, reporterId } = req.query;
+  try {
+    const filter = {};
+    if (listingId) filter.listing_id = String(listingId);
+    if (reporterId) filter.reporter_id = String(reporterId);
+
+    const list = await Incident.find(filter).sort({ created_at: -1 });
+    if (list && list.length > 0) {
+      return res.json(list);
+    }
+  } catch (_) {}
+
+  let memList = [...memoryIncidents];
+  if (listingId) {
+    memList = memList.filter(i => String(i.listing_id || i.listingId) === String(listingId));
+  }
+  if (reporterId) {
+    memList = memList.filter(i => String(i.reporter_id || i.reporterId) === String(reporterId));
+  }
+  return res.json(memList);
+});
+
+// 3. Admin Review & Incident Liability Resolution
+app.patch('/api/incidents/:id', async (req, res) => {
+  const { status, verifiedBillAmount, donorAgreedToPay } = req.body;
+  const incidentId = req.params.id;
+
+  let inc = null;
+  try {
+    if (mongoose.Types.ObjectId.isValid(incidentId)) {
+      inc = await Incident.findById(incidentId);
+    }
+    if (!inc) {
+      inc = await Incident.findOne({ $or: [{ id: incidentId }, { _id: incidentId }] });
+    }
+  } catch (_) {}
+
+  let memInc = memoryIncidents.find(i => String(i.id) === String(incidentId) || String(i._id) === String(incidentId));
+
+  if (!inc && !memInc) {
+    return res.status(404).json({ error: 'Incident record not found.' });
+  }
+
+  const currentInc = inc ? inc.toObject() : memInc;
+
+  if (status === 'CONFIRMED') {
+    const bill = Math.max(0, Number(verifiedBillAmount) || 0);
+    const agreed = donorAgreedToPay === true || donorAgreedToPay === 'true';
+    const resolution = resolveIncidentLiability(currentInc, bill, agreed);
+
+    const updateFields = {
+      status: 'CONFIRMED',
+      verified_bill_amount: bill,
+      verifiedBillAmount: bill,
+      donor_agreed_to_pay: agreed,
+      donorAgreedToPay: agreed,
+      donor_owes: resolution.donorOwes,
+      donorOwes: resolution.donorOwes,
+      platform_contribution: resolution.platformContribution,
+      platformContribution: resolution.platformContribution,
+      legal_escalation: resolution.legalEscalation,
+      legalEscalation: resolution.legalEscalation,
+      legal_basis: resolution.legalBasis,
+      legalBasis: resolution.legalBasis,
+      resolved_at: new Date(),
+      resolvedAt: new Date()
+    };
+
+    if (resolution.legalEscalation) {
+      // Step 10.6.3: set donor trust score to 0 and permanently flag their account
+      const dPhone = currentInc.donor_phone || currentInc.donorPhone;
+      const dId = currentInc.donor_id || currentInc.donorId;
+
+      if (dPhone) {
+        memoryBlacklist.add(dPhone);
+      }
+      try {
+        await User.updateMany(
+          { $or: [{ phone: dPhone }, { _id: dId }] },
+          { trust_score: 0, is_blacklisted: true }
+        );
+      } catch (_) {}
+
+      // Update in-memory users
+      memoryUsers.forEach(u => {
+        if (u.phone === dPhone || String(u.id) === String(dId) || String(u._id) === String(dId)) {
+          u.trust_score = 0;
+          u.is_blacklisted = true;
+        }
+      });
+
+      // Update corresponding donation post if any
+      memoryDonations.forEach(d => {
+        if (d.phone === dPhone || String(d.id) === String(currentInc.listing_id || currentInc.listingId)) {
+          d.trust_score = 0;
+          d.status = 'FLAGGED_FAKE';
+        }
+      });
+    }
+
+    if (inc) {
+      Object.assign(inc, updateFields);
+      await inc.save();
+    }
+    if (memInc) {
+      Object.assign(memInc, updateFields);
+    }
+
+    return res.json(inc || memInc);
+  } else if (status === 'REJECTED') {
+    const updateFields = {
+      status: 'REJECTED',
+      resolved_at: new Date(),
+      resolvedAt: new Date()
+    };
+    if (inc) {
+      Object.assign(inc, updateFields);
+      await inc.save();
+    }
+    if (memInc) {
+      Object.assign(memInc, updateFields);
+    }
+    return res.json(inc || memInc);
+  }
+
+  return res.status(400).json({ error: 'Status must be CONFIRMED or REJECTED.' });
+});
+
+// --------------------------------------------------
 // 7c. CLOTHESLOOP MONETIZATION & PARTNERSHIPS ENDPOINTS
 // --------------------------------------------------
+
 
 // [Phase A] Institutional Bulk Donor Tier Upgrade
 app.post('/api/clothes/upgrade-tier', requireAuth, async (req, res) => {
@@ -2039,14 +2321,22 @@ app.use((req, res) => {
 // 10. SERVER BOOTSTRAPPER
 // --------------------------------------------------
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`====================================================`);
-  console.log(`🚀 FoodLoop Master Server running on http://localhost:${PORT}`);
-  console.log(`🛡️ Hardware Geotag & Anti-Fraud Security: ACTIVE`);
-  if (GEMINI_API_KEY && (GEMINI_API_KEY.startsWith('AIzaSy') || GEMINI_API_KEY.startsWith('AQ.'))) {
-    console.log(`✅ Gemini API key format looks valid (Cloud Assistant ACTIVE)`);
-  } else {
-    console.warn(`⚠️ GEMINI_API_KEY missing or wrong format — AI features will fall back to defaults`);
-  }
-  console.log(`====================================================`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`====================================================`);
+    console.log(`🚀 FoodLoop Master Server running on http://localhost:${PORT}`);
+    console.log(`🛡️ Hardware Geotag & Anti-Fraud Security: ACTIVE`);
+    if (GEMINI_API_KEY && (GEMINI_API_KEY.startsWith('AIzaSy') || GEMINI_API_KEY.startsWith('AQ.'))) {
+      console.log(`✅ Gemini API key format looks valid (Cloud Assistant ACTIVE)`);
+    } else {
+      console.warn(`⚠️ GEMINI_API_KEY missing or wrong format — AI features will fall back to defaults`);
+    }
+    console.log(`====================================================`);
+  });
+}
+
+
+module.exports = {
+  app,
+  resolveIncidentLiability
+};
