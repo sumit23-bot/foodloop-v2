@@ -16,6 +16,23 @@ export default function DemoPersonaBar({ onSelectPersona }) {
       <button type="button" className="btn-demo-guest" onClick={() => onSelectPersona('GUEST')}>
         👤 Visitor
       </button>
+      <button 
+        type="button" 
+        className="btn-demo-admin" 
+        onClick={() => onSelectPersona('ADMIN')}
+        style={{
+          background: 'rgba(239, 68, 68, 0.2)',
+          color: '#f87171',
+          border: '1px solid #ef4444',
+          borderRadius: '9999px',
+          padding: '4px 10px',
+          fontWeight: 700,
+          fontSize: '11px',
+          cursor: 'pointer'
+        }}
+      >
+        ⚖️ Safety Admin
+      </button>
     </div>
   );
 }

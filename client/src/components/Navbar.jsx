@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-export default function Navbar({ currentUser, onOpenAuth, onOpenDashboard, onLogout, onOpenSponsor, currentView, setCurrentView }) {
+export default function Navbar({ currentUser, onOpenAuth, onOpenDashboard, onLogout, onOpenSponsor, onOpenAdmin, currentView, setCurrentView }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -90,6 +90,27 @@ export default function Navbar({ currentUser, onOpenAuth, onOpenDashboard, onLog
           >
             👕 Donate Clothes
           </Link>
+
+          {/* Safety Admin Nav Button */}
+          <button 
+            type="button"
+            id="nav-safety-admin-btn"
+            onClick={() => { onOpenAdmin && onOpenAdmin(); setMenuOpen(false); }}
+            style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              color: '#f87171',
+              border: '1.5px solid rgba(239, 68, 68, 0.4)',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            ⚖️ Safety Admin
+          </button>
 
           <span id="nav-auth-container">
             {currentUser ? (

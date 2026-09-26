@@ -24,7 +24,9 @@ export default function RescueFeeds({
   onOpenQR, 
   onOpenScanner, 
   onRefresh, 
-  onOpenDashboard 
+  onOpenDashboard,
+  onOpenIncidentReport,
+  onOpenIncidentStatus
 }) {
   const isNGO = currentUser && (currentUser.role === 'NGO' || currentUser.role === 'ANIMAL_SHELTER');
 
@@ -322,6 +324,51 @@ export default function RescueFeeds({
                           📷 Scan to Collect
                         </button>
                       ) : null}
+
+                      {isClaimant && isClaimed && (
+                        <>
+                          <button 
+                            type="button" 
+                            onClick={() => onOpenIncidentReport && onOpenIncidentReport(item)} 
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              color: '#f87171',
+                              border: '1px solid #ef4444',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="Report food safety hazard or medical incident from this donation"
+                          >
+                            ⚠️ Report Food Safety Issue
+                          </button>
+                          <button 
+                            type="button" 
+                            onClick={() => onOpenIncidentStatus && onOpenIncidentStatus(item)} 
+                            style={{
+                              background: '#1e293b',
+                              color: '#38bdf8',
+                              border: '1px solid #38bdf8',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                            title="View incident liability and reimbursement status"
+                          >
+                            📋 Safety Status
+                          </button>
+                        </>
+                      )}
 
                       {isNGO && (
                         <button 

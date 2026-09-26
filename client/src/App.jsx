@@ -14,6 +14,9 @@ import ContactSection from './components/ContactSection';
 import Footer from './components/Footer';
 import DemoPersonaBar from './components/DemoPersonaBar';
 import GeminiChatWidget from './components/GeminiChatWidget';
+import ReportIncidentModal from './components/ReportIncidentModal';
+import AdminIncidentModal from './components/AdminIncidentModal';
+import IncidentStatusModal from './components/IncidentStatusModal';
 
 // Modals
 import { 
@@ -72,6 +75,13 @@ export default function App() {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isSponsorOpen, setIsSponsorOpen] = useState(false);
+  
+  // Incident & Safety System State (Task 10)
+  const [isIncidentReportOpen, setIsIncidentReportOpen] = useState(false);
+  const [incidentReportListing, setIncidentReportListing] = useState(null);
+  const [isIncidentStatusOpen, setIsIncidentStatusOpen] = useState(false);
+  const [incidentStatusListing, setIncidentStatusListing] = useState(null);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
 
   // Show Toast Helper
   const showToast = (msg) => {
@@ -284,6 +294,19 @@ export default function App() {
       localStorage.setItem('foodloop_auth_user', JSON.stringify(demoAnimal));
       localStorage.setItem('foodloop_auth_token', demoToken);
       showToast('⚡ Switched to Demo Persona: 🐾 Animal Shelter');
+    } else if (persona === 'ADMIN') {
+      const demoAdmin = {
+        name: 'FoodLoop Safety Admin',
+        organization: 'FoodLoop Legal & Compliance Cell',
+        role: 'ADMIN',
+        phone: '9999900000'
+      };
+      const demoToken = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(demoAdmin))));
+      setCurrentUser(demoAdmin);
+      localStorage.setItem('foodloop_auth_user', JSON.stringify(demoAdmin));
+      localStorage.setItem('foodloop_auth_token', demoToken);
+      setIsAdminModalOpen(true);
+      showToast('⚡ Switched to Demo Persona: ⚖️ Food Safety Admin');
     } else {
       setCurrentUser(null);
       localStorage.removeItem('foodloop_auth_user');
@@ -323,6 +346,7 @@ export default function App() {
             onOpenAuth={() => setIsAuthOpen(true)}
             onOpenDashboard={() => setIsDashboardOpen(true)}
             onOpenSponsor={() => setIsSponsorOpen(true)}
+            onOpenAdmin={() => setIsAdminModalOpen(true)}
             onLogout={() => {
               setCurrentUser(null);
               localStorage.removeItem('foodloop_auth_user');
@@ -427,6 +451,14 @@ export default function App() {
                     }}
                     onRefresh={loadListings}
                     onOpenDashboard={() => setIsDashboardOpen(true)}
+                    onOpenIncidentReport={(item) => {
+                      setIncidentReportListing(item);
+                      setIsIncidentReportOpen(true);
+                    }}
+                    onOpenIncidentStatus={(item) => {
+                      setIncidentStatusListing(item);
+                      setIsIncidentStatusOpen(true);
+                    }}
                   />
                 </div>
               </div>
@@ -525,6 +557,39 @@ export default function App() {
             isOpen={isSponsorOpen}
             onClose={() => setIsSponsorOpen(false)}
             currentUser={currentUser}
+            showToast={showToast}
+          />
+
+          {/* Food-Safety Incident Reporting Modal (NGO Claimant) */}
+          <ReportIncidentModal
+            isOpen={isIncidentReportOpen}
+            onClose={() => {
+              setIsIncidentReportOpen(false);
+              setIncidentReportListing(null);
+            }}
+            listing={incidentReportListing}
+            currentUser={currentUser}
+            showToast={showToast}
+            onIncidentSubmitted={() => {
+              loadListings();
+            }}
+          />
+
+          {/* Transparent Incident Status Modal (Reporter & Community) */}
+          <IncidentStatusModal
+            isOpen={isIncidentStatusOpen}
+            onClose={() => {
+              setIsIncidentStatusOpen(false);
+              setIncidentStatusListing(null);
+            }}
+            listing={incidentStatusListing}
+            currentUser={currentUser}
+          />
+
+          {/* Admin Incident Liability Resolution Board */}
+          <AdminIncidentModal
+            isOpen={isAdminModalOpen}
+            onClose={() => setIsAdminModalOpen(false)}
             showToast={showToast}
           />
 
