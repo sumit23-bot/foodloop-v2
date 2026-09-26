@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Navbar({ currentUser, onOpenAuth, onOpenDashboard, onLogout, onOpenSponsor, currentView, setCurrentView }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -67,6 +68,28 @@ export default function Navbar({ currentUser, onOpenAuth, onOpenDashboard, onLog
           >
             🗺️ Radar Map
           </button>
+
+          {/* ClothesLoop Nav Link */}
+          <Link 
+            to="/clothes"
+            id="nav-donate-clothes-btn"
+            onClick={() => setMenuOpen(false)}
+            style={{
+              background: 'rgba(168, 85, 247, 0.15)',
+              color: '#c084fc',
+              border: '1.5px solid rgba(168, 85, 247, 0.4)',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              textDecoration: 'none'
+            }}
+          >
+            👕 Donate Clothes
+          </Link>
 
           <span id="nav-auth-container">
             {currentUser ? (

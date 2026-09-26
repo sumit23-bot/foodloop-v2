@@ -130,7 +130,7 @@ const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   phone: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['DONOR', 'NGO', 'SHELTER', 'VOLUNTEER', 'ANIMAL_SHELTER'], default: 'DONOR' },
+  role: { type: String, enum: ['DONOR', 'NGO', 'SHELTER', 'VOLUNTEER', 'ANIMAL_SHELTER', 'RECYCLER'], default: 'DONOR' },
   org_name: { type: String, default: '' },
   ngo_darpan_id: { type: String, default: '' },
   is_verified: { type: Boolean, default: true },
@@ -139,6 +139,7 @@ const UserSchema = new mongoose.Schema({
   donations_count: { type: Number, default: 0 },
   claims_count: { type: Number, default: 0 },
   is_blacklisted: { type: Boolean, default: false },
+  clothes_account_tier: { type: String, enum: ['FREE', 'BULK_INSTITUTIONAL'], default: 'FREE' },
   created_at: { type: Date, default: Date.now }
 });
 const User = mongoose.model('User', UserSchema);
@@ -191,16 +192,102 @@ const ContactSchema = new mongoose.Schema({
 });
 const Contact = mongoose.model('Contact', ContactSchema);
 
+// Clothes Donation Schema (ClothesLoop)
+const ClothesDonationSchema = new mongoose.Schema({
+  donor_id: { type: String, required: true },
+  donor_name: { type: String, default: '' },
+  phone: { type: String, default: '' },
+  image: { type: String, required: true },
+  image_hash: { type: String, default: '' },
+  coords: { lat: Number, lon: Number },
+  category: { type: String, enum: ['Men', 'Women', 'Kids', 'Infant'], required: true },
+  size: { type: String, default: '' },
+  season: { type: String, enum: ['Winter', 'Summer', 'Monsoon', 'All-Season'], default: 'All-Season' },
+  garment_type: { type: String, default: '' }, // e.g. formal, casual, school-uniform, ethnic
+  is_washed_sanitized: { type: Boolean, default: false },
+  is_bulk_donation: { type: Boolean, default: false },
+  bulk_note: { type: String, default: '' },
+  ai_is_clothing: { type: Boolean, default: false },
+  ai_confidence: { type: Number, default: 0 },
+  ai_condition_grade: { type: String, enum: ['New with tags', 'Gently Used', 'Wearable', 'Needs Repair', 'Not Wearable'], default: 'Wearable' },
+  ai_reason: { type: String, default: '' },
+  is_winter_priority: { type: Boolean, default: false },
+  routed_for_recycling: { type: Boolean, default: false },
+  status: { type: String, enum: ['OPEN', 'CLAIMED', 'DISPUTED_REVIEW', 'FLAGGED_FAKE'], default: 'OPEN' },
+  claimed_by_ngo: { type: String, default: '' },
+  claimed_by_recycler: { type: String, default: '' },
+  recycler_phone: { type: String, default: '' },
+  recycler_claimed_at: { type: Date },
+  is_resale_eligible: { type: Boolean, default: false },
+  resale_price: { type: Number, default: 0 },
+  resale_status: { type: String, enum: ['NOT_LISTED', 'LISTED', 'SOLD'], default: 'NOT_LISTED' },
+  charity_fee_percent: { type: Number, default: 10 },
+  charity_amount: { type: Number, default: 0 },
+  buyer_name: { type: String, default: '' },
+  buyer_phone: { type: String, default: '' },
+  purchased_at: { type: Date },
+  trust_score: { type: Number, default: 100 },
+  dispute_logs: { type: Array, default: [] },
+  created_at: { type: Date, default: Date.now }
+});
+const ClothesDonation = mongoose.model('ClothesDonation', ClothesDonationSchema);
+
+// Winter Drive Brand CSR Campaign Schema
+const WinterDriveCampaignSchema = new mongoose.Schema({
+  brand_name: { type: String, required: true },
+  brand_logo: { type: String, default: '' },
+  sponsor_user_id: { type: String, default: '' },
+  campaign_title: { type: String, required: true },
+  description: { type: String, default: '' },
+  target_kits: { type: Number, default: 500 },
+  funded_kits: { type: Number, default: 0 },
+  kit_price_inr: { type: Number, default: 500 },
+  status: { type: String, enum: ['ACTIVE', 'COMPLETED'], default: 'ACTIVE' },
+  created_at: { type: Date, default: Date.now }
+});
+const WinterDriveCampaign = mongoose.model('WinterDriveCampaign', WinterDriveCampaignSchema);
+
+let memoryCampaigns = [
+  {
+    _id: 'camp_1',
+    id: 'camp_1',
+    brand_name: 'Zara Cares / Inditex',
+    brand_logo: 'https://images.unsplash.com/photo-1544441893-675973e31985?w=100&auto=format&fit=crop&q=60',
+    campaign_title: 'Zara India Winter Warmth Mission 2026',
+    description: 'Corporate matching drive: providing thermal-lined winter kits for families in Delhi-NCR night shelters.',
+    target_kits: 500,
+    funded_kits: 312,
+    kit_price_inr: 500,
+    status: 'ACTIVE',
+    created_at: new Date()
+  },
+  {
+    _id: 'camp_2',
+    id: 'camp_2',
+    brand_name: 'FabIndia Earth CSR',
+    brand_logo: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=100&auto=format&fit=crop&q=60',
+    campaign_title: 'FabIndia Handloom Winter Shield Drive',
+    description: 'Sponsoring insulated artisan woolen kits for street dwellers and old-age shelters.',
+    target_kits: 300,
+    funded_kits: 195,
+    kit_price_inr: 500,
+    status: 'ACTIVE',
+    created_at: new Date()
+  }
+];
+
 const KNOWN_WEB_IMAGE_HASHES = new Set([
   'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
   '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'
 ]);
 
 let memoryUsers = [
-  { name: 'Rohan Sharma (Manager)', phone: '9811122233', password: bcrypt.hashSync('password123', 10), role: 'DONOR', org_name: 'Grand Hyatt Delhi Banquet', is_verified: true, trust_score: 100 },
-  { name: 'Priya Verma (Delhi Lead)', phone: '9877788899', password: bcrypt.hashSync('password123', 10), role: 'NGO', org_name: 'Robin Hood Army (Delhi Shelter Hub)', ngo_darpan_id: 'DL/2024/008194', is_verified: true, trust_score: 100 }
+  { name: 'Rohan Sharma (Manager)', phone: '9811122233', password: bcrypt.hashSync('password123', 10), role: 'DONOR', org_name: 'Grand Hyatt Delhi Banquet', is_verified: true, trust_score: 100, clothes_account_tier: 'FREE' },
+  { name: 'Priya Verma (Delhi Lead)', phone: '9877788899', password: bcrypt.hashSync('password123', 10), role: 'NGO', org_name: 'Robin Hood Army (Delhi Shelter Hub)', ngo_darpan_id: 'DL/2024/008194', is_verified: true, trust_score: 100, clothes_account_tier: 'FREE' },
+  { name: 'Vikram Mehta (EcoFiber)', phone: '9833344455', password: bcrypt.hashSync('password123', 10), role: 'RECYCLER', org_name: 'EcoFiber Closed-Loop Recyclers', is_verified: true, trust_score: 100, clothes_account_tier: 'FREE' }
 ];
 let memoryDonations = [];
+let memoryClothes = [];
 let memoryContacts = [];
 let memoryBlacklist = new Set();
 
@@ -389,6 +476,122 @@ app.post('/api/ai/verify-food', async (req, res) => {
 });
 
 // --------------------------------------------------
+// 4b. AI CLOTHING VISION VERIFICATION ROUTE (ClothesLoop)
+// --------------------------------------------------
+app.post('/api/ai/verify-clothing', async (req, res) => {
+  const { imageBase64 } = req.body;
+  if (!imageBase64) {
+    return res.status(400).json({
+      is_clothing: false,
+      confidence: 0,
+      condition_grade: 'Wearable',
+      reason: 'No image provided.'
+    });
+  }
+
+  const isKeyConfigured = GEMINI_API_KEY &&
+                          GEMINI_API_KEY !== 'YOUR_API_KEY_HERE' &&
+                          !GEMINI_API_KEY.includes('your_gemini_api_key');
+
+  if (!isKeyConfigured) {
+    console.warn('⚠️ GEMINI_API_KEY not configured — clothing verification disabled.');
+    return res.json({
+      is_clothing: false,
+      confidence: 0,
+      condition_grade: 'Wearable',
+      reason: 'Could not verify — please retake or re-upload the photo.'
+    });
+  }
+
+  try {
+    const rawBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+
+    let cleanBase64 = rawBase64;
+    try {
+      const compressedBuf = await sharp(Buffer.from(rawBase64, 'base64'))
+        .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 75 })
+        .toBuffer();
+      cleanBase64 = compressedBuf.toString('base64');
+    } catch (compressErr) {
+      console.warn('Clothing image compression skipped:', compressErr.message);
+    }
+
+    const promptText = `You are a strict clothing-donation image inspector. Analyze the attached image and respond with ONLY a valid JSON object, no other text, no markdown formatting, no backticks — just the raw JSON, in exactly this shape:
+{"is_clothing": true or false, "confidence": integer from 0 to 100, "condition_grade": "New with tags" or "Gently Used" or "Wearable" or "Needs Repair" or "Not Wearable", "reason": "one short sentence"}
+
+Rules:
+- is_clothing must be true ONLY if the image clearly shows an actual wearable garment or textile item (shirt, pants, dress, jacket, blanket, saree, school uniform, etc.)
+- is_clothing must be false for: people wearing clothes where the clothing itself isn't the clear subject, objects, screenshots, text, food, animals, or anything that is not genuinely a donatable garment/textile
+- condition_grade must honestly reflect visible wear: "New with tags" only if tags/packaging are visible; "Gently Used" for like-new condition; "Wearable" for normal used condition with no significant damage; "Needs Repair" for minor visible damage (small tears, missing buttons, rips); "Not Wearable" for heavy staining, large tears, or clearly unusable condition. Any visible tears, rips, holes, or heavy fraying MUST be graded as "Needs Repair" or "Not Wearable" (never "Wearable", even if intended as fashion distressing).
+- Be conservative on is_clothing: if you are not reasonably confident, set is_clothing to false and lower the confidence score accordingly`;
+
+    const aiRes = await callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY);
+
+    if (!aiRes) {
+      return res.json({
+        is_clothing: false,
+        confidence: 0,
+        condition_grade: 'Wearable',
+        reason: 'Could not verify — please retake or re-upload the photo.'
+      });
+    }
+
+    const aiData = await aiRes.json();
+    let reply = aiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+
+    // Strip markdown code fences defensively
+    reply = reply.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(reply);
+    } catch (_) {
+      const m = reply.match(/\{[\s\S]*\}/);
+      if (m) { try { parsed = JSON.parse(m[0]); } catch (_2) {} }
+    }
+
+    if (!parsed) {
+      console.warn('Gemini returned non-JSON for clothing:', reply.substring(0, 200));
+      return res.json({
+        is_clothing: false,
+        confidence: 0,
+        condition_grade: 'Wearable',
+        reason: 'Could not verify — please retake or re-upload the photo.'
+      });
+    }
+
+    const rawIsClothing = parsed.is_clothing === true;
+    const confidence = typeof parsed.confidence === 'number'
+      ? Math.round(parsed.confidence)
+      : (parseInt(String(parsed.confidence), 10) || 0);
+
+    const validGrades = ['New with tags', 'Gently Used', 'Wearable', 'Needs Repair', 'Not Wearable'];
+    const conditionGrade = validGrades.includes(parsed.condition_grade) ? parsed.condition_grade : 'Wearable';
+    const reason = String(parsed.reason || (rawIsClothing ? 'Verified clothing item.' : 'Image does not appear to show clothing.'));
+
+    // Verified ONLY if is_clothing === true AND confidence >= 60
+    const isVerified = rawIsClothing && confidence >= 60;
+
+    return res.json({
+      is_clothing: isVerified,
+      confidence,
+      condition_grade: conditionGrade,
+      reason
+    });
+
+  } catch (err) {
+    console.warn('Gemini Clothing Vision call threw:', err.message);
+    return res.json({
+      is_clothing: false,
+      confidence: 0,
+      condition_grade: 'Wearable',
+      reason: 'Could not verify — please retake or re-upload the photo.'
+    });
+  }
+});
+
+// --------------------------------------------------
 // 5. PERCEPTUAL IMAGE HASHING & REVERSE LOOKUP (ANTI-STOCK PHOTO)
 // --------------------------------------------------
 async function computePerceptualHash(base64Image) {
@@ -504,7 +707,8 @@ function generateToken(user) {
       role: user.role,
       org_name: user.org_name,
       name: user.name,
-      ngo_darpan_id: user.ngo_darpan_id
+      ngo_darpan_id: user.ngo_darpan_id,
+      clothes_account_tier: user.clothes_account_tier || 'FREE'
     },
     JWT_SECRET,
     { expiresIn: '7d' }
@@ -779,6 +983,186 @@ app.patch('/api/donations/:id/claim', requireAuth, async (req, res) => {
 });
 
 // --------------------------------------------------
+// 7b. CLOTHES DONATION CONTROLLERS (ClothesLoop)
+// --------------------------------------------------
+app.get('/api/clothes', async (req, res) => {
+  try {
+    const list = await ClothesDonation.find({ status: 'OPEN' }).sort({ created_at: -1 });
+    const memoryOpen = memoryClothes.filter(c => c.status === 'OPEN');
+    res.json(list.length > 0 ? list : memoryOpen);
+  } catch {
+    res.json(memoryClothes.filter(c => c.status === 'OPEN'));
+  }
+});
+
+app.post('/api/clothes', donationSubmissionLimiter, requireAuth, [
+  body('category').isIn(['Men', 'Women', 'Kids', 'Infant']).withMessage('Category must be Men, Women, Kids, or Infant.'),
+  body('image').notEmpty().withMessage('Donation photo is required.'),
+  validateRequest
+], async (req, res) => {
+  const {
+    image,
+    coords,
+    category,
+    size,
+    season,
+    garment_type,
+    is_washed_sanitized,
+    is_bulk_donation,
+    bulk_note,
+    ai_is_clothing,
+    ai_confidence,
+    ai_condition_grade,
+    ai_reason,
+    is_resale_eligible,
+    resale_price
+  } = req.body;
+
+  const donorPhone = req.user?.phone || '';
+  const donorId = req.user?.id || req.user?._id || '';
+  const donorName = req.user?.name || req.user?.org_name || 'Anonymous Donor';
+
+  if (donorPhone && memoryBlacklist.has(donorPhone)) {
+    return res.status(403).json({ error: 'This phone number is permanently blacklisted due to multiple verified disputes.' });
+  }
+
+  const imageHash = image ? await computePerceptualHash(image) : '';
+
+  // Server-side winter priority calculation:
+  // Month in November through February (10=Nov, 11=Dec, 0=Jan, 1=Feb in JS Date)
+  const currentMonth = new Date().getMonth();
+  const isWinterMonth = [10, 11, 0, 1].includes(currentMonth);
+  const warmRegex = /blanket|sweater|jacket|thermal|shawl|hoodie|coat|woolen|pullover|cardigan|muffler|quilt/i;
+  const isWarmItem = warmRegex.test(`${garment_type || ''} ${category || ''}`);
+  const isWinterPriority = isWinterMonth && isWarmItem;
+
+  const safeCondition = ['New with tags', 'Gently Used', 'Wearable', 'Needs Repair', 'Not Wearable'].includes(ai_condition_grade)
+    ? ai_condition_grade
+    : 'Wearable';
+
+  // Automatically route for textile recycling if condition grade is "Not Wearable"
+  const routedForRecycling = safeCondition === 'Not Wearable';
+
+  const isResale = Boolean(is_resale_eligible === true || is_resale_eligible === 'true');
+  const resalePriceNum = isResale ? Math.max(0, Number(resale_price) || 0) : 0;
+  const resaleStatus = isResale ? 'LISTED' : 'NOT_LISTED';
+  const charityAmount = isResale ? Math.round(resalePriceNum * 0.10) : 0;
+
+  const clothesData = {
+    donor_id: String(donorId || Date.now().toString()),
+    donor_name: String(donorName).trim(),
+    phone: String(donorPhone).trim(),
+    image: String(image),
+    image_hash: imageHash,
+    coords: coords && typeof coords.lat === 'number' && typeof coords.lon === 'number'
+      ? { lat: coords.lat, lon: coords.lon }
+      : { lat: 28.6139, lon: 77.2090 },
+    category,
+    size: String(size || '').trim(),
+    season: ['Winter', 'Summer', 'Monsoon', 'All-Season'].includes(season) ? season : 'All-Season',
+    garment_type: String(garment_type || '').trim(),
+    is_washed_sanitized: Boolean(is_washed_sanitized),
+    is_bulk_donation: Boolean(is_bulk_donation),
+    bulk_note: String(bulk_note || '').trim(),
+    ai_is_clothing: Boolean(ai_is_clothing),
+    ai_confidence: typeof ai_confidence === 'number' ? Math.round(ai_confidence) : (parseInt(ai_confidence, 10) || 0),
+    ai_condition_grade: safeCondition,
+    ai_reason: String(ai_reason || '').trim(),
+    is_winter_priority: isWinterPriority,
+    routed_for_recycling: routedForRecycling,
+    claimed_by_recycler: '',
+    is_resale_eligible: isResale,
+    resale_price: resalePriceNum,
+    resale_status: resaleStatus,
+    charity_fee_percent: 10,
+    charity_amount: charityAmount,
+    status: 'OPEN',
+    claimed_by_ngo: '',
+    trust_score: 100,
+    dispute_logs: [],
+    created_at: new Date()
+  };
+
+  try {
+    const newItem = new ClothesDonation(clothesData);
+    await newItem.save();
+    return res.status(201).json(newItem);
+  } catch (err) {
+    const fallbackItem = {
+      id: Date.now().toString(),
+      _id: Date.now().toString(),
+      ...clothesData
+    };
+    memoryClothes.unshift(fallbackItem);
+    return res.status(201).json(fallbackItem);
+  }
+});
+
+app.patch('/api/clothes/:id/claim', requireAuth, async (req, res) => {
+  // Authorization: Only verified NGOs/Shelters can claim
+  if (req.user && req.user.role && req.user.role !== 'NGO' && req.user.role !== 'SHELTER' && req.user.role !== 'ANIMAL_SHELTER') {
+    return res.status(403).json({ error: 'Only verified NGOs and Shelters are authorized to claim donations.' });
+  }
+
+  const { claimant_phone, claimant_org, ngo_name, darpan_id } = req.body || {};
+  const orgName = claimant_org || ngo_name || req.user?.org_name || req.user?.organization || req.user?.name || 'Verified NGO Partner';
+  const orgPhone = claimant_phone || req.user?.phone || '';
+  const orgDarpan = darpan_id || req.user?.ngo_darpan_id || req.user?.darpan_id || '';
+
+  try {
+    let updated = null;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      updated = await ClothesDonation.findByIdAndUpdate(
+        req.params.id,
+        {
+          status: 'CLAIMED',
+          claimed_by_ngo: orgName,
+          claimant_phone: orgPhone,
+          darpan_id: orgDarpan
+        },
+        { new: true }
+      );
+    }
+    if (!updated) {
+      updated = await ClothesDonation.findOneAndUpdate(
+        { $or: [{ id: req.params.id }, { _id: req.params.id }] },
+        {
+          status: 'CLAIMED',
+          claimed_by_ngo: orgName,
+          claimant_phone: orgPhone,
+          darpan_id: orgDarpan
+        },
+        { new: true }
+      );
+    }
+    if (!updated) {
+      const item = memoryClothes.find(d => String(d.id) === String(req.params.id) || String(d._id) === String(req.params.id));
+      if (item) {
+        item.status = 'CLAIMED';
+        item.claimed_by_ngo = orgName;
+        item.claimant_phone = orgPhone;
+        item.darpan_id = orgDarpan;
+        return res.json(item);
+      }
+    }
+    if (!updated) {
+      return res.status(404).json({ error: 'Clothes listing not found.' });
+    }
+    return res.json(updated);
+  } catch (err) {
+    const item = memoryClothes.find(d => String(d.id) === String(req.params.id) || String(d._id) === String(req.params.id));
+    if (item) {
+      item.status = 'CLAIMED';
+      item.claimed_by_ngo = orgName;
+      item.claimant_phone = orgPhone;
+      item.darpan_id = orgDarpan;
+      return res.json(item);
+    }
+    return res.status(500).json({ error: 'Failed to claim clothes donation.' });
+  }
+});
+
+// --------------------------------------------------
 // 8. PROOF-OF-GROUND DISPUTE & REPORT CONTROLLER
 // --------------------------------------------------
 app.post('/api/donations/:id/report-fake', donationSubmissionLimiter, requireAuth, async (req, res) => {
@@ -834,6 +1218,630 @@ app.post('/api/donations/:id/report-fake', donationSubmissionLimiter, requireAut
     }
   } catch (err) {
     return res.status(500).json({ error: 'Internal moderation error.' });
+  }
+});
+
+app.post('/api/clothes/:id/report-fake', donationSubmissionLimiter, requireAuth, async (req, res) => {
+  const { reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km } = req.body;
+
+  if (reporter_distance_km > 0.3) {
+    return res.status(400).json({ 
+      error: `Geofence Violation: You are ${(reporter_distance_km * 1000).toFixed(0)}m away. You must be physically present at the pickup site (within 300m) to file a dispute report.` 
+    });
+  }
+
+  if (!evidence_image || evidence_image.length < 50) {
+    return res.status(400).json({ error: 'Photographic proof is mandatory.' });
+  }
+
+  try {
+    let clothes = null;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      clothes = await ClothesDonation.findById(req.params.id);
+    }
+    if (!clothes) {
+      clothes = await ClothesDonation.findOne({ $or: [{ id: req.params.id }, { _id: req.params.id }] });
+    }
+
+    if (!clothes) {
+      let memItem = memoryClothes.find(d => String(d.id) === String(req.params.id) || String(d._id) === String(req.params.id));
+      if (memItem) {
+        if (!memItem.dispute_logs) memItem.dispute_logs = [];
+        memItem.dispute_logs.push({ reported_by: reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km, timestamp: new Date() });
+        if (memItem.dispute_logs.length >= 2) {
+          memItem.status = 'FLAGGED_FAKE';
+          memoryBlacklist.add(memItem.phone);
+          const donorUser = memoryUsers.find(u => u.phone === memItem.phone);
+          if (donorUser) {
+            donorUser.is_blacklisted = true;
+            donorUser.trust_score = 0;
+          }
+          return res.json({ status: 'BANNED', message: '🚨 2nd Verified NGO strike confirmed. Donor permanently blacklisted.' });
+        } else {
+          memItem.status = 'DISPUTED_REVIEW';
+          memItem.trust_score = 45;
+          return res.json({ status: 'UNDER_REVIEW', message: '⚠️ 1st Strike logged with Geotagged Proof. Listing flagged as Under Review.' });
+        }
+      }
+      return res.status(404).json({ error: 'Listing not found.' });
+    }
+
+    const alreadyReported = clothes.dispute_logs.some(log => log.darpan_id === darpan_id || log.reporter_phone === reporter_phone);
+    if (alreadyReported) {
+      return res.status(400).json({ error: 'Your organization has already filed a strike for this listing.' });
+    }
+
+    clothes.dispute_logs.push({ reported_by: reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km, timestamp: new Date() });
+
+    if (clothes.dispute_logs.length >= 2) {
+      clothes.status = 'FLAGGED_FAKE';
+      await User.findOneAndUpdate({ phone: clothes.phone }, { is_blacklisted: true, trust_score: 0 });
+      const donorUser = memoryUsers.find(u => u.phone === clothes.phone);
+      if (donorUser) {
+        donorUser.is_blacklisted = true;
+        donorUser.trust_score = 0;
+      }
+      memoryBlacklist.add(clothes.phone);
+      await clothes.save();
+      return res.json({ status: 'BANNED', message: '🚨 2nd Verified NGO strike confirmed. Donor permanently blacklisted.' });
+    } else {
+      clothes.status = 'DISPUTED_REVIEW';
+      clothes.trust_score = 45;
+      await clothes.save();
+      return res.json({ status: 'UNDER_REVIEW', message: '⚠️ 1st Strike logged with Geotagged Proof. Listing flagged as Under Review.' });
+    }
+  } catch (err) {
+    console.error('Clothes dispute error:', err);
+    return res.status(500).json({ error: 'Internal moderation error.' });
+  }
+});
+
+// --------------------------------------------------
+// 7c. CLOTHESLOOP MONETIZATION & PARTNERSHIPS ENDPOINTS
+// --------------------------------------------------
+
+// [Phase A] Institutional Bulk Donor Tier Upgrade
+app.post('/api/clothes/upgrade-tier', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const userPhone = req.user?.phone;
+    let updatedUser = null;
+
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      updatedUser = await User.findByIdAndUpdate(userId, { clothes_account_tier: 'BULK_INSTITUTIONAL' }, { new: true });
+    }
+    if (!updatedUser && userPhone) {
+      updatedUser = await User.findOneAndUpdate({ phone: userPhone }, { clothes_account_tier: 'BULK_INSTITUTIONAL' }, { new: true });
+    }
+    if (!updatedUser) {
+      let mem = memoryUsers.find(u => (userId && (String(u.id) === String(userId) || String(u._id) === String(userId))) || (userPhone && u.phone === userPhone));
+      if (mem) {
+        mem.clothes_account_tier = 'BULK_INSTITUTIONAL';
+        updatedUser = mem;
+      }
+    }
+
+    const safeUser = updatedUser ? (updatedUser.toObject ? updatedUser.toObject() : { ...updatedUser }) : { ...req.user, clothes_account_tier: 'BULK_INSTITUTIONAL' };
+    delete safeUser.password;
+    safeUser.clothes_account_tier = 'BULK_INSTITUTIONAL';
+    const token = generateToken(safeUser);
+
+    return res.json({
+      success: true,
+      user: safeUser,
+      token,
+      message: '🎉 Successfully upgraded to Institutional & Corporate Bulk Donor Tier!'
+    });
+  } catch (err) {
+    console.error('Tier upgrade error:', err);
+    return res.status(500).json({ error: 'Failed to upgrade tier.' });
+  }
+});
+
+// [Phase A] Bulk Analytics & CSR Impact Reporting
+app.get('/api/clothes/bulk-analytics', requireAuth, async (req, res) => {
+  const userPhone = req.user?.phone || '';
+  const userId = req.user?.id || req.user?._id || '';
+
+  // Check tier from req.user or memory/DB lookup
+  let tier = req.user?.clothes_account_tier || 'FREE';
+  if (tier !== 'BULK_INSTITUTIONAL') {
+    const mem = memoryUsers.find(u => (userId && (String(u.id) === String(userId) || String(u._id) === String(userId))) || (userPhone && u.phone === userPhone));
+    if (mem && mem.clothes_account_tier === 'BULK_INSTITUTIONAL') {
+      tier = 'BULK_INSTITUTIONAL';
+    }
+  }
+
+  if (tier !== 'BULK_INSTITUTIONAL') {
+    return res.status(403).json({ error: 'Upgrade required. Institutional Bulk Donor tier required.' });
+  }
+
+  try {
+    let donations = [];
+    try {
+      donations = await ClothesDonation.find({
+        $or: [
+          { donor_id: String(userId) },
+          { phone: userPhone }
+        ]
+      }).sort({ created_at: -1 });
+    } catch (_) {}
+
+    const memDonations = memoryClothes.filter(c => (userId && String(c.donor_id) === String(userId)) || (userPhone && c.phone === userPhone));
+    const allMap = new Map();
+    donations.forEach(d => allMap.set(String(d._id || d.id), d));
+    memDonations.forEach(d => {
+      const idKey = String(d._id || d.id);
+      if (!allMap.has(idKey)) allMap.set(idKey, d);
+    });
+    const userDonations = Array.from(allMap.values());
+
+    const totalDonations = userDonations.length;
+    const bulkBatches = userDonations.filter(d => d.is_bulk_donation);
+    const totalBulkBatches = bulkBatches.length;
+    const totalKgEst = Math.round((totalBulkBatches * 15) + ((totalDonations - totalBulkBatches) * 0.6));
+    const totalGarmentsEst = (totalBulkBatches * 25) + (totalDonations - totalBulkBatches);
+    const co2SavedKg = Math.round(totalKgEst * 3.6);
+    const waterSavedL = Math.round(totalKgEst * 2700);
+
+    const categoryCounts = { Men: 0, Women: 0, Kids: 0, Infant: 0 };
+    userDonations.forEach(d => {
+      if (categoryCounts[d.category] !== undefined) categoryCounts[d.category]++;
+    });
+
+    const recyclingCount = userDonations.filter(d => d.routed_for_recycling).length;
+
+    return res.json({
+      tier: 'BULK_INSTITUTIONAL',
+      org_name: req.user.org_name || req.user.name || 'Institutional Partner',
+      stats: {
+        total_donations: totalDonations,
+        total_bulk_batches: totalBulkBatches,
+        total_garments_est: totalGarmentsEst,
+        total_kg_est: totalKgEst,
+        co2_saved_kg: co2SavedKg,
+        water_saved_liters: waterSavedL,
+        category_breakdown: categoryCounts,
+        recycling_routed: recyclingCount
+      },
+      csr_certificate: {
+        certificate_id: `CSR-FL-${(userPhone || '0000').slice(-4)}-${Date.now().toString().slice(-4)}`,
+        entity_name: req.user.org_name || req.user.name || 'Institutional Partner',
+        issued_date: new Date(),
+        verified_by: 'FoodLoop ClothesLoop Trust Engine',
+        impact_summary: `${totalGarmentsEst} garments (${totalKgEst} kg) diverted from landfill, saving ${co2SavedKg} kg CO2e.`
+      },
+      recent_donations: userDonations.slice(0, 10)
+    });
+  } catch (err) {
+    console.error('Bulk analytics error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve bulk analytics.' });
+  }
+});
+
+// [Phase B] Textile Recycler Feed — Non-Wearable Batches
+app.get('/api/clothes/recycling-batches', requireAuth, async (req, res) => {
+  if (req.user?.role !== 'RECYCLER') {
+    return res.status(403).json({ error: 'Access restricted to registered Textile Recycling Partners.' });
+  }
+
+  try {
+    let batches = [];
+    try {
+      batches = await ClothesDonation.find({
+        routed_for_recycling: true,
+        $or: [
+          { claimed_by_recycler: { $exists: false } },
+          { claimed_by_recycler: '' },
+          { claimed_by_recycler: null }
+        ]
+      }).sort({ created_at: -1 });
+    } catch (_) {}
+
+    const memBatches = memoryClothes.filter(c => c.routed_for_recycling && (!c.claimed_by_recycler || c.claimed_by_recycler === ''));
+    const allMap = new Map();
+    batches.forEach(b => allMap.set(String(b._id || b.id), b));
+    memBatches.forEach(b => {
+      const idKey = String(b._id || b.id);
+      if (!allMap.has(idKey)) allMap.set(idKey, b);
+    });
+
+    return res.json(Array.from(allMap.values()));
+  } catch (err) {
+    console.error('Recycling batches fetch error:', err);
+    return res.status(500).json({ error: 'Failed to fetch recycling batches.' });
+  }
+});
+
+// [Phase B] Claim Batch for Textile Recycling
+app.patch('/api/clothes/:id/claim-for-recycling', requireAuth, async (req, res) => {
+  if (req.user?.role !== 'RECYCLER') {
+    return res.status(403).json({ error: 'Access restricted to registered Textile Recycling Partners.' });
+  }
+
+  const recyclerName = req.user.org_name || req.user.name || 'Verified Recycler';
+  const recyclerPhone = req.user.phone || '';
+
+  try {
+    let updated = null;
+    const updateData = {
+      status: 'CLAIMED',
+      claimed_by_recycler: recyclerName,
+      recycler_phone: recyclerPhone,
+      recycler_claimed_at: new Date()
+    };
+
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      updated = await ClothesDonation.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    }
+    if (!updated) {
+      updated = await ClothesDonation.findOneAndUpdate(
+        { $or: [{ id: req.params.id }, { _id: req.params.id }] },
+        updateData,
+        { new: true }
+      );
+    }
+    if (!updated) {
+      let mem = memoryClothes.find(c => String(c.id) === String(req.params.id) || String(c._id) === String(req.params.id));
+      if (mem) {
+        Object.assign(mem, updateData);
+        return res.json(mem);
+      }
+      return res.status(404).json({ error: 'Listing not found.' });
+    }
+    return res.json(updated);
+  } catch (err) {
+    console.error('Recycling claim error:', err);
+    return res.status(500).json({ error: 'Failed to claim recycling batch.' });
+  }
+});
+
+// [Phase C] Brand CSR Campaigns — Create
+app.post('/api/clothes/campaigns', requireAuth, async (req, res) => {
+  const { brand_name, brand_logo, campaign_title, description, target_kits, kit_price_inr } = req.body;
+  if (!brand_name || !campaign_title) {
+    return res.status(400).json({ error: 'Brand name and campaign title are required.' });
+  }
+
+  const campData = {
+    brand_name: String(brand_name).trim(),
+    brand_logo: String(brand_logo || '').trim(),
+    sponsor_user_id: String(req.user?.id || req.user?._id || ''),
+    campaign_title: String(campaign_title).trim(),
+    description: String(description || '').trim(),
+    target_kits: Math.max(1, Number(target_kits) || 500),
+    funded_kits: 0,
+    kit_price_inr: Math.max(100, Number(kit_price_inr) || 500),
+    status: 'ACTIVE',
+    created_at: new Date()
+  };
+
+  try {
+    let existing = await WinterDriveCampaign.findOne({ campaign_title: campData.campaign_title });
+    if (existing) {
+      existing.brand_name = campData.brand_name;
+      existing.description = campData.description;
+      existing.target_kits = campData.target_kits;
+      existing.kit_price_inr = campData.kit_price_inr;
+      await existing.save();
+      return res.status(201).json(existing);
+    }
+
+    const newCamp = new WinterDriveCampaign(campData);
+    await newCamp.save();
+    memoryCampaigns.unshift(newCamp.toObject ? newCamp.toObject() : newCamp);
+    return res.status(201).json(newCamp);
+  } catch (err) {
+    let memExisting = memoryCampaigns.find(c => c.campaign_title.toLowerCase() === campData.campaign_title.toLowerCase());
+    if (memExisting) {
+      Object.assign(memExisting, campData);
+      return res.status(201).json(memExisting);
+    }
+    const fallbackCamp = { id: `camp_${Date.now()}`, _id: `camp_${Date.now()}`, ...campData };
+    memoryCampaigns.unshift(fallbackCamp);
+    return res.status(201).json(fallbackCamp);
+  }
+});
+
+// [Phase C] Brand CSR Campaigns — Public Listing (Deduplicated)
+app.get('/api/clothes/campaigns', async (req, res) => {
+  try {
+    let list = await WinterDriveCampaign.find({ status: 'ACTIVE' }).sort({ created_at: -1 });
+    const memActive = memoryCampaigns.filter(c => c.status === 'ACTIVE');
+    const combined = [...(list || []), ...memActive];
+
+    // Deduplicate by campaign_title
+    const uniqueMap = new Map();
+    combined.forEach(c => {
+      const key = (c.campaign_title || '').trim().toLowerCase();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, c);
+      }
+    });
+
+    return res.json(Array.from(uniqueMap.values()));
+  } catch {
+    const uniqueMap = new Map();
+    memoryCampaigns.filter(c => c.status === 'ACTIVE').forEach(c => {
+      const key = (c.campaign_title || '').trim().toLowerCase();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, c);
+      }
+    });
+    return res.json(Array.from(uniqueMap.values()));
+  }
+});
+
+// [Phase D] Sponsor-a-Winter-Kit — Create Order (Reusing RazorpayClient)
+app.post('/api/clothes/sponsor-winter-kit', async (req, res) => {
+  const { kits_count, campaign_id, donor_name, donor_phone } = req.body;
+  const kits = Math.max(1, parseInt(kits_count, 10) || 1);
+  const pricePerKit = 500;
+  const totalInr = kits * pricePerKit;
+  const amountInPaise = totalInr * 100;
+
+  if (RazorpayClient && process.env.RAZORPAY_KEY_ID) {
+    try {
+      const options = {
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `rcpt_kit_${Date.now()}`,
+        notes: {
+          purpose: 'ClothesLoop Sponsor-A-Winter-Kit',
+          kits_count: String(kits),
+          campaign_id: campaign_id || '',
+          donor_name: donor_name || 'Kind Contributor'
+        }
+      };
+      const order = await RazorpayClient.orders.create(options);
+      return res.json({
+        order_id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        key_id: process.env.RAZORPAY_KEY_ID,
+        kits_count: kits,
+        campaign_id
+      });
+    } catch (err) {
+      console.warn('Razorpay kit order fallback:', err.message);
+    }
+  }
+
+  const mockOrderId = `order_mock_kit_${Date.now()}`;
+  return res.json({
+    order_id: mockOrderId,
+    amount: amountInPaise,
+    currency: 'INR',
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_mock',
+    mock: true,
+    kits_count: kits,
+    campaign_id
+  });
+});
+
+// [Phase D] Sponsor-a-Winter-Kit — Verify Payment & Increment Funded Kits
+app.post('/api/clothes/sponsor-winter-kit/verify', async (req, res) => {
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    campaign_id,
+    kits_count,
+    donor_name
+  } = req.body;
+
+  const count = Math.max(1, parseInt(kits_count, 10) || 1);
+  const isMock = !razorpay_order_id || String(razorpay_order_id).startsWith('order_mock_') || String(razorpay_payment_id || '').startsWith('pay_mock_') || !razorpay_signature || !process.env.RAZORPAY_KEY_SECRET;
+
+  if (!isMock) {
+    try {
+      const generatedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest('hex');
+
+      if (generatedSignature !== razorpay_signature) {
+        return res.status(400).json({ error: 'Signature verification failed.' });
+      }
+    } catch (err) {
+      return res.status(400).json({ error: 'Payment signature verification error.' });
+    }
+  }
+
+  if (campaign_id) {
+    try {
+      if (mongoose.Types.ObjectId.isValid(campaign_id)) {
+        await WinterDriveCampaign.findByIdAndUpdate(campaign_id, { $inc: { funded_kits: count } });
+      } else {
+        await WinterDriveCampaign.findOneAndUpdate(
+          { $or: [{ id: campaign_id }, { _id: campaign_id }] },
+          { $inc: { funded_kits: count } }
+        );
+      }
+    } catch (_) {}
+
+    const memC = memoryCampaigns.find(c => String(c.id) === String(campaign_id) || String(c._id) === String(campaign_id));
+    if (memC) {
+      memC.funded_kits = (memC.funded_kits || 0) + count;
+    }
+  }
+
+  const paymentId = razorpay_payment_id || `pay_mock_kit_${Date.now()}`;
+  return res.json({
+    success: true,
+    verified: true,
+    payment_id: paymentId,
+    kits_count: count,
+    campaign_id,
+    donor_name: donor_name || 'Kind Sponsor',
+    message: `🎉 Thank you! ${count} Winter Kit${count > 1 ? 's' : ''} sponsored for night-shelters.`
+  });
+});
+
+// [Phase E] Wedding Wear Resale — Create Purchase Order
+app.post('/api/clothes/:id/purchase', async (req, res) => {
+  try {
+    let clothes = null;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      clothes = await ClothesDonation.findById(req.params.id);
+    }
+    if (!clothes) {
+      clothes = await ClothesDonation.findOne({ $or: [{ id: req.params.id }, { _id: req.params.id }] });
+    }
+    if (!clothes) {
+      clothes = memoryClothes.find(c => String(c.id) === String(req.params.id) || String(c._id) === String(req.params.id));
+    }
+
+    if (!clothes) {
+      return res.status(404).json({ error: 'Clothing listing not found.' });
+    }
+
+    if (!clothes.is_resale_eligible) {
+      return res.status(400).json({ error: 'This item is not listed for wedding resale.' });
+    }
+
+    if (clothes.resale_status === 'SOLD') {
+      return res.status(400).json({ error: 'This unique piece has already been purchased.' });
+    }
+
+    const price = Number(clothes.resale_price) || 0;
+    if (price <= 0) {
+      return res.status(400).json({ error: 'Invalid resale price.' });
+    }
+
+    const amountInPaise = Math.round(price * 100);
+    const charityCut = Math.round(price * 0.10);
+    const donorCut = price - charityCut;
+
+    if (RazorpayClient && process.env.RAZORPAY_KEY_ID) {
+      try {
+        const options = {
+          amount: amountInPaise,
+          currency: 'INR',
+          receipt: `rcpt_resale_${Date.now()}`,
+          notes: {
+            clothes_id: String(req.params.id),
+            purpose: 'ClothesLoop Wedding Resale + 10% Shelter Charity Cut',
+            charity_cut: String(charityCut),
+            donor_cut: String(donorCut)
+          }
+        };
+        const order = await RazorpayClient.orders.create(options);
+        return res.json({
+          order_id: order.id,
+          amount: order.amount,
+          currency: order.currency,
+          key_id: process.env.RAZORPAY_KEY_ID,
+          clothes_id: req.params.id,
+          resale_price: price,
+          charity_cut: charityCut,
+          donor_cut: donorCut
+        });
+      } catch (err) {
+        console.warn('Razorpay resale order fallback:', err.message);
+      }
+    }
+
+    const mockOrderId = `order_mock_resale_${Date.now()}`;
+    return res.json({
+      order_id: mockOrderId,
+      amount: amountInPaise,
+      currency: 'INR',
+      key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_mock',
+      mock: true,
+      clothes_id: req.params.id,
+      resale_price: price,
+      charity_cut: charityCut,
+      donor_cut: donorCut
+    });
+  } catch (err) {
+    console.error('Resale order error:', err);
+    return res.status(500).json({ error: 'Failed to initiate purchase.' });
+  }
+});
+
+// [Phase E] Wedding Wear Resale — Verify Purchase & Enforce 10% Charity Cut
+app.post('/api/clothes/:id/purchase/verify', async (req, res) => {
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    buyer_name,
+    buyer_phone
+  } = req.body;
+
+  const isMock = !razorpay_order_id || String(razorpay_order_id).startsWith('order_mock_') || String(razorpay_payment_id || '').startsWith('pay_mock_') || String(razorpay_payment_id || '').startsWith('pay_resale_') || !razorpay_signature || !process.env.RAZORPAY_KEY_SECRET;
+
+  if (!isMock) {
+    try {
+      const generatedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest('hex');
+
+      if (generatedSignature !== razorpay_signature) {
+        return res.status(400).json({ error: 'Signature verification failed.' });
+      }
+    } catch (err) {
+      return res.status(400).json({ error: 'Payment signature verification error.' });
+    }
+  }
+
+  const bName = buyer_name || req.user?.name || 'Verified Buyer';
+  const bPhone = buyer_phone || req.user?.phone || '';
+  const paymentId = razorpay_payment_id || `pay_mock_resale_${Date.now()}`;
+
+  try {
+    let updated = null;
+    const updateData = {
+      resale_status: 'SOLD',
+      status: 'CLAIMED',
+      buyer_name: bName,
+      buyer_phone: bPhone,
+      purchased_at: new Date()
+    };
+
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      updated = await ClothesDonation.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    }
+    if (!updated) {
+      updated = await ClothesDonation.findOneAndUpdate(
+        { $or: [{ id: req.params.id }, { _id: req.params.id }] },
+        updateData,
+        { new: true }
+      );
+    }
+    if (!updated) {
+      let mem = memoryClothes.find(c => String(c.id) === String(req.params.id) || String(c._id) === String(req.params.id));
+      if (mem) {
+        Object.assign(mem, updateData);
+        updated = mem;
+      }
+    }
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Listing not found.' });
+    }
+
+    const price = Number(updated.resale_price) || 0;
+    const charityCut = Math.round(price * 0.10);
+    const donorCut = price - charityCut;
+
+    return res.json({
+      success: true,
+      verified: true,
+      payment_id: paymentId,
+      item: updated,
+      charity_split: {
+        total_price: price,
+        donor_payout: donorCut,
+        foodloop_charity_cut: charityCut
+      },
+      message: `✨ Purchase confirmed! ₹${charityCut} (10%) has been channeled to rescue meals for night shelters.`
+    });
+  } catch (err) {
+    console.error('Resale purchase verify error:', err);
+    return res.status(500).json({ error: 'Failed to verify resale purchase.' });
   }
 });
 

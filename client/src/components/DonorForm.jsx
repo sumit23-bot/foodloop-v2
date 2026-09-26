@@ -168,22 +168,45 @@ export default function DonorForm({
   // Camera Management
   const startCamera = async () => {
     try {
-      const constraints = {
-        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }
+        });
+      } catch (envErr) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
       }
+
+      streamRef.current = stream;
       setIsCameraActive(true);
       setImagePreview('');
       setAiState({ status: 'IDLE', confidence: 0, reason: '' });
+
+      const attachVideo = () => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.muted = true;
+          videoRef.current.play().catch(() => {});
+        }
+      };
+      attachVideo();
+      setTimeout(attachVideo, 50);
+      setTimeout(attachVideo, 150);
     } catch (err) {
-      alert('Camera access denied or unavailable: ' + err.message);
+      console.warn('Camera access failed:', err);
+      alert('Camera access denied or unavailable: ' + err.message + '\n\nPlease check browser permissions or use "Upload from Gallery".');
     }
   };
+
+  useEffect(() => {
+    if (isCameraActive && streamRef.current && videoRef.current) {
+      if (videoRef.current.srcObject !== streamRef.current) {
+        videoRef.current.srcObject = streamRef.current;
+      }
+      videoRef.current.muted = true;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [isCameraActive]);
 
   const stopCamera = () => {
     if (streamRef.current) {
@@ -474,6 +497,7 @@ export default function DonorForm({
               ref={videoRef} 
               autoPlay 
               playsInline 
+              muted
               style={{ width: '100%', maxHeight: '280px', objectFit: 'cover', display: isCameraActive ? 'block' : 'none', borderRadius: '8px' }} 
             />
 
