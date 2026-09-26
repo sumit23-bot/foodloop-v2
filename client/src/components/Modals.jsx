@@ -4,6 +4,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { VERIFIED_NGO_REGISTRY, calculateDistance } from '../data/directory';
 import { generate80GCertificate } from '../utils/certificate';
 import confetti from 'canvas-confetti';
+import { TERMS_CONTENT_V1, TERMS_VERSION } from '../data/termsContent';
 
 // ─── 1. Auth Modal ─────────────────────────────────────────────────────────────
 export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
@@ -1148,3 +1149,209 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
     </div>
   );
 }
+
+// ─── 9. Donor Terms & Conditions Modal ──────────────────────────────────────────
+export function TermsAndConditionsModal({ isOpen, onClose, onAccept }) {
+  const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
+  const [isAgreed, setIsAgreed] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setHasScrolledToBottom(false);
+      setIsAgreed(false);
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleScroll = (e) => {
+    const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+    if (scrollTop + clientHeight >= scrollHeight - 5) {
+      setHasScrolledToBottom(true);
+    }
+  };
+
+  const handleConfirm = () => {
+    if (!isAgreed) return;
+    onAccept({
+      termsVersion: TERMS_VERSION,
+      acceptedAt: new Date().toISOString()
+    });
+  };
+
+  return (
+    <div id="terms-modal" className="modal-overlay" style={{ display: 'flex' }}>
+      <div 
+        className="auth-modal-card" 
+        style={{ 
+          maxWidth: '650px', 
+          width: '95%', 
+          maxHeight: '90vh', 
+          display: 'flex', 
+          flexDirection: 'column',
+          background: '#0f172a',
+          border: '1.5px solid #334155',
+          borderRadius: '16px',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+        }}
+      >
+        <div className="modal-top-row" style={{ marginBottom: '12px', borderBottom: '1px solid #1e293b', paddingBottom: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '20px' }}>⚖️</span>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
+                Donor Terms &amp; Conditions
+              </h3>
+              <span style={{ 
+                background: 'rgba(56, 189, 248, 0.15)', 
+                color: '#38bdf8', 
+                fontSize: '11px', 
+                padding: '2px 8px', 
+                borderRadius: '6px', 
+                fontWeight: 700 
+              }}>
+                {TERMS_VERSION}
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
+              Mandatory legal confirmation before posting a surplus food donation.
+            </p>
+          </div>
+          <button type="button" className="close-x-btn" onClick={onClose} aria-label="Close Terms modal">✕</button>
+        </div>
+
+        {/* Scrollable Terms Content */}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="custom-scrollbar"
+          id="terms-content-scroll"
+          style={{
+            maxHeight: '400px',
+            overflowY: 'auto',
+            background: '#090d16',
+            border: '1px solid #1e293b',
+            borderRadius: '8px',
+            padding: '16px 20px',
+            color: '#cbd5e1',
+            fontSize: '13px',
+            lineHeight: '1.7',
+            whiteSpace: 'pre-wrap',
+            fontFamily: 'system-ui, -apple-system, sans-serif'
+          }}
+        >
+          {TERMS_CONTENT_V1}
+        </div>
+
+        {/* Scroll Notice & Agreement Gate */}
+        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #1e293b' }}>
+          {!hasScrolledToBottom ? (
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px dashed rgba(245, 158, 11, 0.4)',
+              color: '#fbbf24',
+              fontSize: '12px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span>📜</span>
+              <span>Please scroll to the bottom of the terms above to unlock agreement.</span>
+            </div>
+          ) : (
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#34d399',
+              fontSize: '12px',
+              padding: '8px 12px',
+              borderRadius: '8px',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span>✓</span>
+              <span>You have scrolled through the entire legal agreement.</span>
+            </div>
+          )}
+
+          <label
+            htmlFor="terms-agreement-checkbox"
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              cursor: hasScrolledToBottom ? 'pointer' : 'not-allowed',
+              opacity: hasScrolledToBottom ? 1 : 0.45,
+              userSelect: 'none',
+              marginBottom: '16px'
+            }}
+          >
+            <input
+              type="checkbox"
+              id="terms-agreement-checkbox"
+              disabled={!hasScrolledToBottom}
+              checked={isAgreed}
+              onChange={(e) => setIsAgreed(e.target.checked)}
+              style={{
+                marginTop: '3px',
+                width: '18px',
+                height: '18px',
+                cursor: hasScrolledToBottom ? 'pointer' : 'not-allowed',
+                accentColor: '#10b981'
+              }}
+            />
+            <span style={{ fontSize: '13px', color: '#f1f5f9', fontWeight: 600, lineHeight: 1.4 }}>
+              I have read and agree to the Donor Terms &amp; Conditions above
+            </span>
+          </label>
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '10px 18px',
+                background: '#1e293b',
+                color: '#94a3b8',
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                fontWeight: 600,
+                fontSize: '13px',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              id="confirm-post-donation-btn"
+              disabled={!isAgreed}
+              onClick={handleConfirm}
+              style={{
+                padding: '10px 22px',
+                background: isAgreed ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#334155',
+                color: isAgreed ? '#000' : '#64748b',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '13px',
+                cursor: isAgreed ? 'pointer' : 'not-allowed',
+                boxShadow: isAgreed ? '0 4px 14px rgba(16, 185, 129, 0.3)' : 'none',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              Confirm &amp; Post Donation
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
