@@ -177,6 +177,16 @@ const DonationSchema = new mongoose.Schema({
     reporter_distance_km: Number,
     timestamp: { type: Date, default: Date.now }
   }],
+  termsAcceptance: {
+    version: { type: String, default: 'v1.0' },
+    acceptedAt: { type: Date, default: Date.now },
+    ip: { type: String, default: '' }
+  },
+  terms_acceptance: {
+    version: { type: String, default: 'v1.0' },
+    acceptedAt: { type: Date, default: Date.now },
+    ip: { type: String, default: '' }
+  },
   created_at: { type: Date, default: Date.now }
 }, { strict: false });
 const Donation = mongoose.model('Donation', DonationSchema);
@@ -857,6 +867,8 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
   body('title').trim().notEmpty().withMessage('Donation title is required and cannot be empty.'),
   body('quantity').trim().notEmpty().withMessage('Quantity is required and cannot be empty.'),
   body('address').trim().notEmpty().withMessage('Pickup address is required and cannot be empty.'),
+  body('termsAcceptance.version').notEmpty().withMessage('Terms & Conditions acceptance is required to post a donation.'),
+  body('termsAcceptance.acceptedAt').notEmpty().withMessage('Terms & Conditions acceptance is required to post a donation.'),
   validateRequest
 ], async (req, res) => {
   const { 
@@ -879,6 +891,13 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
   if (memoryBlacklist.has(donorPhone)) {
     return res.status(403).json({ error: 'This phone number is permanently blacklisted due to multiple verified disputes.' });
   }
+
+  const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress || '127.0.0.1';
+  const termsRecord = {
+    version: String(req.body.termsAcceptance?.version || 'v1.0'),
+    acceptedAt: req.body.termsAcceptance?.acceptedAt ? new Date(req.body.termsAcceptance.acceptedAt) : new Date(),
+    ip: clientIp
+  };
 
   const imageHash = image ? await computePerceptualHash(image) : '';
   const numExpiry = Number(expiry_hours) || 3;
@@ -905,7 +924,9 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
     is_live_capture: is_live_capture !== undefined ? Boolean(is_live_capture) : true,
     ai_detected_class: ai_detected_class || 'Live Hardware Camera Verified',
     trust_score: 100,
-    status: initialStatus
+    status: initialStatus,
+    termsAcceptance: termsRecord,
+    terms_acceptance: termsRecord
   };
 
   try {
