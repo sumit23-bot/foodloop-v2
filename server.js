@@ -440,7 +440,7 @@ app.post('/api/ai/chat', async (req, res) => {
 
 // Helper: call Gemini vision with fast model cascade + per-model timeout
 async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
-  const MODELS = ['gemini-3-flash-preview', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.8-flash'];
+  const MODELS = ['gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.6-flash', 'gemini-3.8-flash'];
   const payload = {
     contents: [{
       parts: [
@@ -458,7 +458,7 @@ async function callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(6000)
+        signal: AbortSignal.timeout(12000)
       });
       if (aiRes.ok) return aiRes;
       const body = await aiRes.text();
@@ -533,7 +533,7 @@ Rules:
     const aiRes = await callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY);
 
     if (!aiRes) {
-      return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Could not verify — please retake or re-upload the photo.' });
+      return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Verification service temporarily busy. Please click Retry Check to verify again.' });
     }
 
     const aiData = await aiRes.json();
@@ -552,7 +552,7 @@ Rules:
 
     if (!parsed) {
       console.warn('Gemini returned non-JSON:', reply.substring(0, 200));
-      return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Could not verify — please retake or re-upload the photo.' });
+      return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Verification could not parse photo details. Please click Retry Check to verify again.' });
     }
 
     const rawIsFood = parsed.is_food === true;
@@ -582,7 +582,7 @@ Rules:
 
   } catch (err) {
     console.warn('Gemini Vision call threw:', err.message);
-    return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Could not verify — please retake or re-upload the photo.' });
+    return res.json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Verification service error. Please click Retry Check to verify again.' });
   }
 });
 
