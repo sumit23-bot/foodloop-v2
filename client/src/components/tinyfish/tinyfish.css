@@ -4,17 +4,18 @@
 .tf-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   background: rgba(56, 189, 248, 0.12);
   color: var(--blue-accent, #38bdf8);
   border: 1px solid rgba(56, 189, 248, 0.3);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 9999px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   user-select: none;
+  white-space: nowrap;
 }
 
 .tf-news-section {

@@ -9,6 +9,7 @@ function createRateLimiter(max, windowMinutes) {
   return rateLimit({
     windowMs: windowMinutes * 60 * 1000,
     max,
+    skip: () => process.env.NODE_ENV === 'test',
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Rate limit exceeded. Please try again later.' }
@@ -35,6 +36,84 @@ function isGovOrTrustDomain(domain) {
     domain.endsWith('.org') ||
     domain === 'ngodarpan.gov.in'
   );
+}
+
+const LOW_VALUE_HOSTS = [
+  'scribd.com',
+  'nairaland.com',
+  'pdfcoffee.com',
+  'studylib.net',
+  'docplayer.net',
+  'slideshare.net',
+  'reddit.com',
+  'quora.com',
+  'facebook.com',
+  'instagram.com',
+  'youtube.com',
+  'pinterest.com',
+  'stacks.cdc.gov',
+  'threads.net',
+  'threads.com',
+  'tiktok.com',
+  'twitter.com',
+  'x.com',
+  'studocu.com',
+  'e-yearbook.com'
+];
+
+function isLowValueHost(domain) {
+  if (!domain) return false;
+  const d = domain.toLowerCase();
+  return LOW_VALUE_HOSTS.some(bad => d === bad || d.endsWith('.' + bad));
+}
+
+const NGO_CONTEXT_WORDS_REGEX = /\b(ngo|foundation|trust|society|charitable|charity|non-profit|nonprofit|registered|darpan|section 8|12a|80g|volunteers|donate|donation|relief|welfare|shelter|gaushala)\b/i;
+
+function checkNgoEvidence(orgName, item, fetchedPage) {
+  const words = (orgName || '')
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.length === 0) return false;
+
+  const escapedPattern = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+');
+  const orgNameRegex = new RegExp(`\\b${escapedPattern}\\b`, 'i');
+
+  const title = item?.title || '';
+  const snippet = item?.snippet || '';
+  const cleanTitle = title.toLowerCase().replace(/[^\w\s]/g, ' ');
+  const cleanSnippet = snippet.toLowerCase().replace(/[^\w\s]/g, ' ');
+
+  const nameInTitle = orgNameRegex.test(cleanTitle);
+  const nameInSnippet = orgNameRegex.test(cleanSnippet);
+  const ngoInTitleOrSnippet = NGO_CONTEXT_WORDS_REGEX.test(title) || NGO_CONTEXT_WORDS_REGEX.test(snippet);
+
+  // Condition (a) name in title/snippet AND (b) NGO-context in the same title/snippet
+  if ((nameInTitle || nameInSnippet) && ngoInTitleOrSnippet) {
+    return true;
+  }
+
+  // Condition (a) name in page text AND (b) NGO-context within 200 chars of name
+  if (fetchedPage && typeof fetchedPage.text === 'string' && fetchedPage.text.trim()) {
+    const pageText = fetchedPage.text;
+    const globalOrgRegex = new RegExp(`\\b${escapedPattern}\\b`, 'gi');
+    let match;
+    while ((match = globalOrgRegex.exec(pageText)) !== null) {
+      const idx = match.index;
+      const matchLen = match[0].length;
+      const start = Math.max(0, idx - 200);
+      const end = Math.min(pageText.length, idx + matchLen + 200);
+      const windowText = pageText.slice(start, end);
+      if (NGO_CONTEXT_WORDS_REGEX.test(windowText)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 module.exports = ({ requireAuth }) => {
@@ -157,7 +236,7 @@ module.exports = ({ requireAuth }) => {
       const searchRes = await tinyfish.search({
         query: queryStr,
         location: 'IN',
-        exclude_domains: 'facebook.com,instagram.com,youtube.com,pinterest.com,quora.com'
+        exclude_domains: LOW_VALUE_HOSTS.join(',')
       }, { timeoutMs: 8000, ttlSeconds: 1800 });
 
       if (!searchRes.ok || !searchRes.data?.results || searchRes.data.results.length === 0) {
@@ -170,7 +249,21 @@ module.exports = ({ requireAuth }) => {
         });
       }
 
-      const top5 = searchRes.data.results.slice(0, 5);
+      const rawResults = searchRes.data.results;
+      // Second guard: filter out low-value hosts
+      const validResults = rawResults.filter(r => !isLowValueHost(getDomain(r.url)));
+
+      if (validResults.length === 0) {
+        return res.json({
+          available: true,
+          confidence: 'LOW',
+          evidence: [],
+          darpan_id_seen: false,
+          disclaimer
+        });
+      }
+
+      const top5 = validResults.slice(0, 5);
       const top2Urls = top5.slice(0, 2).map(r => r.url);
 
       // Attempt to fetch top 2 pages
@@ -187,48 +280,55 @@ module.exports = ({ requireAuth }) => {
         }
       }
 
-      const normalizedOrg = normalizeStr(cleanOrg);
-      const normalizedDarpan = darpan_id ? normalizeStr(darpan_id) : '';
-
       const matchedDomains = new Set();
       let trustDomainMatched = false;
-      let darpanSeen = false;
-      const evidence = [];
+      const evaluatedList = [];
 
       for (const item of top5) {
         const domain = getDomain(item.url);
         const fetchedPage = fetchedMap.get(item.url);
-        const fullText = `${item.title} ${item.snippet} ${item.url} ${fetchedPage?.text || ''}`;
-        const normFullText = normalizeStr(fullText);
+        const matched = checkNgoEvidence(cleanOrg, item, fetchedPage);
 
-        const nameMatched = normalizedOrg.length >= 3 && normFullText.includes(normalizedOrg);
-        if (normalizedDarpan && normFullText.includes(normalizedDarpan)) {
-          darpanSeen = true;
-        }
-
-        if (nameMatched) {
+        if (matched) {
           matchedDomains.add(domain);
           if (isGovOrTrustDomain(domain)) {
             trustDomainMatched = true;
           }
         }
 
-        if (evidence.length < 3) {
-          evidence.push({
-            title: item.title,
-            url: item.url,
-            site_name: item.site_name || domain,
-            matched: nameMatched
-          });
+        evaluatedList.push({
+          title: item.title,
+          url: item.url,
+          site_name: item.site_name || domain,
+          matched
+        });
+      }
+
+      // Check Darpan ID across top results
+      let darpanSeen = false;
+      if (darpan_id && typeof darpan_id === 'string' && darpan_id.trim()) {
+        const normDarpan = normalizeStr(darpan_id);
+        for (const item of top5) {
+          const fetchedPage = fetchedMap.get(item.url);
+          const fullText = `${item.title} ${item.snippet} ${fetchedPage?.text || ''}`;
+          if (normalizeStr(fullText).includes(normDarpan)) {
+            darpanSeen = true;
+            break;
+          }
         }
       }
 
-      let confidence = 'UNKNOWN';
+      // Prioritize matched evidence first in top 3
+      const evidence = evaluatedList
+        .sort((a, b) => (b.matched ? 1 : 0) - (a.matched ? 1 : 0))
+        .slice(0, 3);
+
+      let confidence = 'LOW';
       if (matchedDomains.size >= 2 && trustDomainMatched) {
         confidence = 'HIGH';
-      } else if (matchedDomains.size >= 1) {
+      } else if (matchedDomains.size === 1) {
         confidence = 'MEDIUM';
-      } else if (top5.length > 0) {
+      } else {
         confidence = 'LOW';
       }
 

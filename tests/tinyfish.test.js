@@ -380,6 +380,218 @@ test('8. Routes: /status, /news, /ngo-check, and /partners validation & auth', a
   }
 });
 
+test('9. NGO Check: Stricter matching tests (xyzzz no context, low-value hosts, legit 2 domains HIGH, legit 1 domain MEDIUM, bot_blocked fallback)', async () => {
+  const { app } = require('../server');
+  const tinyfish = require('../services/tinyfish');
+  tinyfish._resetForTests();
+  process.env.NODE_ENV = 'test';
+
+  const server = http.createServer(app);
+  await new Promise(resolve => server.listen(0, resolve));
+  const port = server.address().port;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    // (a) name "xyzzz" where mocked pages contain the string with NO NGO context -> LOW
+    global.fetch = async (url, opts) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('127.0.0.1') || urlStr.includes('localhost')) {
+        return originalFetch(url, opts);
+      }
+      if (urlStr.includes('search')) {
+        return new Response(JSON.stringify({
+          query: 'xyzzz',
+          results: [
+            { position: 1, title: 'xyzzz User Profile', snippet: 'Just a random software tool named xyzzz', url: 'https://softwarehub.com/xyzzz' }
+          ]
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('fetch')) {
+        return new Response(JSON.stringify({
+          results: [
+            { url: 'https://softwarehub.com/xyzzz', text: 'xyzzz is a command line developer tool for compiling binary files.' }
+          ],
+          errors: []
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    };
+
+    const resA = await originalFetch(`${baseUrl}/api/tinyfish/ngo-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_name: 'xyzzz' })
+    });
+    const jsonA = await resA.json();
+    assert.equal(jsonA.confidence, 'LOW');
+    assert.equal(jsonA.evidence[0].matched, false);
+
+    // (b) name "xyzzz" where the mocked results are from scribd/nairaland/stacks.cdc.gov -> LOW
+    tinyfish._resetForTests();
+    global.fetch = async (url, opts) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('127.0.0.1') || urlStr.includes('localhost')) {
+        return originalFetch(url, opts);
+      }
+      if (urlStr.includes('search')) {
+        return new Response(JSON.stringify({
+          query: 'xyzzz',
+          results: [
+            { position: 1, title: 'xyzzz Document', snippet: 'PDF upload for xyzzz', url: 'https://scribd.com/doc/xyzzz' },
+            { position: 2, title: 'xyzzz Forum Thread', snippet: 'Forum topic on xyzzz', url: 'https://nairaland.com/xyzzz' },
+            { position: 3, title: 'CDC Public Data', snippet: 'Health stacks data xyzzz', url: 'https://stacks.cdc.gov/view/cdc/xyzzz' }
+          ]
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    };
+
+    const resB = await originalFetch(`${baseUrl}/api/tinyfish/ngo-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_name: 'xyzzz' })
+    });
+    const jsonB = await resB.json();
+    assert.equal(jsonB.confidence, 'LOW');
+    assert.equal(jsonB.evidence.length, 0); // all low-value hosts filtered out
+
+    // (c) a mocked legit NGO ("Robin Hood Army") with title/snippet containing NGO context on two domains incl. an .org -> HIGH
+    tinyfish._resetForTests();
+    global.fetch = async (url, opts) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('127.0.0.1') || urlStr.includes('localhost')) {
+        return originalFetch(url, opts);
+      }
+      if (urlStr.includes('search')) {
+        return new Response(JSON.stringify({
+          query: 'Robin Hood Army',
+          results: [
+            {
+              position: 1,
+              title: 'Robin Hood Army - Volunteer Organization',
+              snippet: 'Robin Hood Army is a volunteer based non-profit organization feeding meals',
+              url: 'https://robinhoodarmy.com'
+            },
+            {
+              position: 2,
+              title: 'Robin Hood Army Community Trust',
+              snippet: 'Registered charitable trust Robin Hood Army working in surplus food distribution',
+              url: 'https://feedingnetwork.org/rha'
+            }
+          ]
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('fetch')) {
+        return new Response(JSON.stringify({
+          results: [
+            { url: 'https://robinhoodarmy.com', text: 'Robin Hood Army volunteers rescue excess food across India.' },
+            { url: 'https://feedingnetwork.org/rha', text: 'Charitable foundation Robin Hood Army partnership network.' }
+          ],
+          errors: []
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    };
+
+    const resC = await originalFetch(`${baseUrl}/api/tinyfish/ngo-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_name: 'Robin Hood Army' })
+    });
+    const jsonC = await resC.json();
+    assert.equal(jsonC.confidence, 'HIGH');
+    assert.equal(jsonC.evidence.filter(e => e.matched).length, 2);
+
+    // (d) legit on one domain -> MEDIUM
+    tinyfish._resetForTests();
+    global.fetch = async (url, opts) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('127.0.0.1') || urlStr.includes('localhost')) {
+        return originalFetch(url, opts);
+      }
+      if (urlStr.includes('search')) {
+        return new Response(JSON.stringify({
+          query: 'Robin Hood Army',
+          results: [
+            {
+              position: 1,
+              title: 'Robin Hood Army - Volunteer Organization',
+              snippet: 'Robin Hood Army is a volunteer based non-profit organization',
+              url: 'https://robinhoodarmy.com'
+            },
+            {
+              position: 2,
+              title: 'Unrelated News Article',
+              snippet: 'Article about urban cities without any mention of the organization',
+              url: 'https://dailynews.com/article'
+            }
+          ]
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('fetch')) {
+        return new Response(JSON.stringify({
+          results: [
+            { url: 'https://robinhoodarmy.com', text: 'Robin Hood Army volunteers rescue food.' }
+          ],
+          errors: []
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    };
+
+    const resD = await originalFetch(`${baseUrl}/api/tinyfish/ngo-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_name: 'Robin Hood Army' })
+    });
+    const jsonD = await resD.json();
+    assert.equal(jsonD.confidence, 'MEDIUM');
+    assert.equal(jsonD.evidence[0].matched, true);
+
+    // (e) fetch errors bot_blocked/login_required -> no crash, falls back to snippet-only matching
+    tinyfish._resetForTests();
+    global.fetch = async (url, opts) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('127.0.0.1') || urlStr.includes('localhost')) {
+        return originalFetch(url, opts);
+      }
+      if (urlStr.includes('search')) {
+        return new Response(JSON.stringify({
+          query: 'Robin Hood Army',
+          results: [
+            {
+              position: 1,
+              title: 'Robin Hood Army NGO Relief',
+              snippet: 'Robin Hood Army volunteer trust providing hunger relief',
+              url: 'https://protected-site.org/rha'
+            }
+          ]
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      if (urlStr.includes('fetch')) {
+        return new Response(JSON.stringify({
+          results: [],
+          errors: [
+            { url: 'https://protected-site.org/rha', error: 'bot_blocked' }
+          ]
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('{}', { status: 200 });
+    };
+
+    const resE = await originalFetch(`${baseUrl}/api/tinyfish/ngo-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ org_name: 'Robin Hood Army' })
+    });
+    const jsonE = await resE.json();
+    assert.equal(jsonE.confidence, 'MEDIUM');
+    assert.equal(jsonE.evidence[0].matched, true);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 test.after(async () => {
   const mongoose = require('mongoose');
   try {

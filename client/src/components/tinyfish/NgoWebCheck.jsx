@@ -90,7 +90,7 @@ function NgoWebCheckInner({ orgName = '', darpanId = '' }) {
                   <a href={ev.url} target="_blank" rel="noopener noreferrer">
                     {ev.site_name || ev.title || 'Reference'}
                   </a>
-                  {ev.matched ? ' (Name verified)' : ''}
+                  {ev.matched ? ' (name found on page)' : ''}
                 </li>
               ))}
             </ul>
