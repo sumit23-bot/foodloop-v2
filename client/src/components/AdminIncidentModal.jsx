@@ -11,7 +11,12 @@ export default function AdminIncidentModal({ isOpen, onClose, showToast }) {
   const fetchIncidents = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/incidents');
+      const token = localStorage.getItem('foodloop_auth_token') || '';
+      const res = await fetch('/api/incidents', {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         setIncidents(data);
@@ -53,6 +58,7 @@ export default function AdminIncidentModal({ isOpen, onClose, showToast }) {
 
     setActionLoading(true);
     try {
+      const token = localStorage.getItem('foodloop_auth_token') || '';
       const payload = {
         status,
         verifiedBillAmount: Number(billAmount) || 0,
@@ -61,9 +67,13 @@ export default function AdminIncidentModal({ isOpen, onClose, showToast }) {
 
       const res = await fetch(`/api/incidents/${incId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify(payload)
       });
+
 
       const updated = await res.json();
       if (res.ok) {

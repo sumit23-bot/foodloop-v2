@@ -7,14 +7,19 @@ export default function IncidentStatusModal({ isOpen, onClose, listing, currentU
   useEffect(() => {
     if (isOpen && listing) {
       const listingId = listing.id || listing._id;
-      setLoading(true);
-      fetch(`/api/incidents?listingId=${listingId}`)
+      const token = localStorage.getItem('foodloop_auth_token') || '';
+      fetch(`/api/incidents?listingId=${listingId}`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        }
+      })
         .then(r => r.json())
         .then(data => {
           setIncidents(Array.isArray(data) ? data : []);
           setLoading(false);
         })
         .catch(() => setLoading(false));
+
     }
   }, [isOpen, listing]);
 

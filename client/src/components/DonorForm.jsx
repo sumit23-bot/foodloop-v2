@@ -65,6 +65,13 @@ export default function DonorForm({
     };
   }, []);
 
+  // Sync phone when currentUser changes (e.g. demo login or persona switch)
+  useEffect(() => {
+    if (currentUser?.phone) {
+      setPhone(currentUser.phone);
+    }
+  }, [currentUser]);
+
   // Fast GPS Auto-Locate with Nominatim Reverse-Geocoding
   const handleGPSAutoLocate = () => {
     if (!navigator.geolocation) {
@@ -174,6 +181,10 @@ export default function DonorForm({
     setCategory(presetCat);
     setQuantity(presetQty);
     setWindowHours(String(presetWindow));
+    if (!address) {
+      setAddress('The Grand Heritage Banquet, Sector 29, Gurgaon, Delhi-NCR');
+      setCustomCoords({ lat: 28.4695, lon: 77.0658 });
+    }
     if (showToast) showToast(`⚡ Fast-Track Preset: "${presetTitle}" loaded!`);
   };
 
@@ -403,23 +414,28 @@ export default function DonorForm({
       clearTimeout(timeoutId);
 
       const data = await res.json();
-      if (data.is_food === true && (data.confidence ?? 0) >= 60) {
+      if (res.ok && data.is_food === true && (data.confidence ?? 0) >= 50) {
         setAiState({ 
           status: 'VERIFIED', 
           confidence: data.confidence, 
           reason: data.reason,
           is_bulk: data.is_bulk !== undefined ? data.is_bulk : true,
           quantity_level: data.quantity_level || (data.is_bulk ? 'BULK_SURPLUS' : 'LOW_QUANTITY'),
-          estimated_servings_range: data.estimated_servings_range || ''
+          estimated_servings_range: data.estimated_servings_range || '',
+          verification_token: data.verification_token || '',
+          retryable: false
         });
       } else {
+        const isRetryable = res.status === 503 || Boolean(data.retryable);
         setAiState({ 
           status: 'REJECTED', 
           confidence: data.confidence || 0, 
-          reason: data.reason || 'Image does not clearly show food.',
+          reason: data.reason || (isRetryable ? 'AI service temporarily busy. Please click Retry Check.' : 'Image does not clearly show food.'),
           is_bulk: false,
           quantity_level: 'LOW_QUANTITY',
-          estimated_servings_range: ''
+          estimated_servings_range: '',
+          verification_token: '',
+          retryable: isRetryable
         });
       }
     } catch (err) {
@@ -429,11 +445,12 @@ export default function DonorForm({
         status: 'REJECTED', 
         confidence: 0, 
         reason: err.name === 'AbortError' 
-          ? 'Verification took too long. Click Retry to check again.' 
-          : 'Verification service error. Click Retry to check again.',
+          ? 'Verification took too long. Click Retry Check to try again.' 
+          : 'Verification service error. Click Retry Check to try again.',
         is_bulk: false,
         quantity_level: 'LOW_QUANTITY',
-        estimated_servings_range: ''
+        estimated_servings_range: '',
+        retryable: true
       });
     }
   };
@@ -520,9 +537,10 @@ export default function DonorForm({
       ai_portion_reason: aiState.reason || '',
       is_live_capture: isLiveCapture,
       ai_detected_class: aiState.reason || 'AI Verified Food',
+      ai_verification_token: aiState.verification_token || '',
       trust_score: 100,
       created_at: new Date().toISOString(),
-      status: (parseInt(windowHours) === 1) ? 'DIVERTED_TO_ANIMALS' : 'AVAILABLE'
+      status: (parseInt(windowHours, 10) <= 1) ? 'DIVERTED_TO_ANIMALS' : 'AVAILABLE'
     };
 
     setPendingDonationPayload(payload);
@@ -717,7 +735,7 @@ export default function DonorForm({
                     position: 'absolute',
                     top: '10px',
                     left: '10px',
-                    background: '#ef4444',
+                    background: aiState.retryable ? '#f59e0b' : '#ef4444',
                     color: '#ffffff',
                     padding: '5px 10px',
                     borderRadius: '6px',
@@ -729,7 +747,8 @@ export default function DonorForm({
                     gap: '6px',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
                   }}>
-                    <i className="fa-solid fa-circle-xmark"></i> Not Food Detected
+                    <i className={aiState.retryable ? "fa-solid fa-arrows-rotate" : "fa-solid fa-circle-xmark"}></i>
+                    {aiState.retryable ? 'AI Busy (Click Retry)' : 'Not Food Detected'}
                   </span>
                 )}
 
@@ -815,20 +834,22 @@ export default function DonorForm({
             {imagePreview && aiState.status === 'REJECTED' && (
               <div style={{
                 marginTop: '10px',
-                background: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.35)',
+                background: aiState.retryable ? 'rgba(245, 158, 11, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                border: aiState.retryable ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(239, 68, 68, 0.35)',
                 borderRadius: '8px',
                 padding: '10px 14px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: '12px',
-                color: '#fca5a5'
+                color: aiState.retryable ? '#fde68a' : '#fca5a5'
               }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  <i className="fa-solid fa-triangle-exclamation" style={{ color: '#ef4444', fontSize: '16px', marginTop: '2px' }}></i>
+                  <i className={aiState.retryable ? "fa-solid fa-arrows-rotate" : "fa-solid fa-triangle-exclamation"} style={{ color: aiState.retryable ? '#f59e0b' : '#ef4444', fontSize: '16px', marginTop: '2px' }}></i>
                   <div style={{ fontSize: '12px', lineHeight: 1.4 }}>
-                    <strong style={{ color: '#f87171' }}>Verification Rejected: </strong>
+                    <strong style={{ color: aiState.retryable ? '#fbbf24' : '#f87171' }}>
+                      {aiState.retryable ? 'AI Service Busy: ' : 'Verification Rejected: '}
+                    </strong>
                     <span>{aiState.reason || 'Image does not clearly show edible surplus food.'}</span>
                   </div>
                 </div>

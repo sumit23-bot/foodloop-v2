@@ -209,7 +209,7 @@ export default function RescueFeeds({
                             🔓 {isItemDonor ? 'YOUR REGISTERED DONOR CONTACT' : 'REVEALED DONOR CONTACT'}
                           </span>
                           <strong style={{ fontSize: '13px', color: '#34d399', letterSpacing: '0.3px' }}>
-                            📞 {item.phone || (currentUser?.phone ?? '9876543210')}
+                            📞 {item.phone || (isItemDonor && currentUser?.phone ? currentUser.phone : 'Protected')}
                           </strong>
                         </div>
                         {item.phone && (

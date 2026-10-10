@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# FoodLoop Audit additions (Fix Group G3)
+.env*.local
+dist/
+coverage/
+scratch/
+

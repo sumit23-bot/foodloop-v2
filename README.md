@@ -90,16 +90,21 @@ FoodLoop's core rescue loop — posting and claiming surplus food — is **free 
 
 Create a `.env` file (see `.env.example`) with:
 
-```
+```env
 PORT=5000
-MONGO_URI=your_mongodb_connection_string
+NODE_ENV=development
+DEMO_MODE=true
+CORS_ORIGINS=http://localhost:5173,http://localhost:5000
+MONGO_URI=mongodb://127.0.0.1:27017/foodloop
 GEMINI_API_KEY=your_google_gemini_api_key
+GEMINI_CHAT_MODELS=gemini-3.8-flash,gemini-3.5-flash-lite,gemini-2.5-flash
+GEMINI_VISION_MODELS=gemini-3.8-flash,gemini-3.5-flash-lite,gemini-2.5-flash
 JWT_SECRET=your_jwt_secret
 RAZORPAY_KEY_ID=your_razorpay_test_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_test_key_secret
 ```
 
-Razorpay keys should be **test-mode** keys during development/demo — live payments require completing Razorpay's business KYC first.
+Razorpay keys should be **test-mode** keys during development/demo — live payments require completing Razorpay's business KYC first. Demo mode (`DEMO_MODE=true`) allows seeded persona logins and simulated payments during hackathon testing.
 
 ---
 
