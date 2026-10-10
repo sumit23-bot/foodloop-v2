@@ -1,0 +1,60 @@
+:root {
+  /* Graphite palette */
+  --graphite: #1B1E22;
+  --graphite-hover: #2A2E34;
+  --graphite-divider: #3A4048;
+  --graphite-text-muted: #8E96A0;
+  --graphite-text: #FFFFFF;
+
+  /* Surfaces & canvas */
+  --canvas: #F4F5F6;
+  --surface: #FFFFFF;
+  --surface-alt: #F9FAFB;
+  --border: #D9DDE1;
+  --border-strong: #B8BEC5;
+
+  /* Text colours */
+  --text-primary: #1B1F23;
+  --text-secondary: #5B636B;
+  --text-tertiary: #7F8892;
+
+  /* Status functional colours */
+  --status-available-text: #1E6B3C;
+  --status-available-bg: #E6F2EA;
+  --status-available-border: #C2E2CE;
+
+  --status-expiring-text: #9A5B00;
+  --status-expiring-bg: #F8EBD6;
+  --status-expiring-border: #EED4AF;
+
+  --status-critical-text: #A32A2A;
+  --status-critical-bg: #F6E0E0;
+  --status-critical-border: #EBBEBE;
+
+  --status-info-text: #1F4E79;
+  --status-info-bg: #E3EDF6;
+  --status-info-border: #BED2E5;
+
+  /* Hairline accent colours */
+  --hairline-saffron: #D9822B;
+  --hairline-white: #FFFFFF;
+  --hairline-green: #1E6B3C;
+
+  /* Typography */
+  --font-serif: "Source Serif 4", Georgia, serif;
+  --font-sans: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Radii & Shadows */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --shadow-subtle: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-drawer: -4px 0 24px rgba(0, 0, 0, 0.12);
+  --shadow-dialog: 0 12px 36px rgba(0, 0, 0, 0.15);
+
+  /* Touch & Sizing */
+  --sidebar-width: 264px;
+  --sidebar-collapsed-width: 72px;
+  --topbar-height: 56px;
+  --mobile-tabbar-height: 60px;
+}

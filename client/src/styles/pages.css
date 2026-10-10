@@ -1,0 +1,605 @@
+/* Page Specific Layouts & Styles */
+
+/* ─── 1. Page Header Standard ─────────────────────────────────────────────── */
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.page-title {
+  font-family: var(--font-serif);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.page-subtitle {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  max-width: 680px;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ─── 2. Ledger Strip (Overview) ───────────────────────────────────────────── */
+.ledger-strip {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 18px 24px;
+  margin-bottom: 24px;
+}
+
+.ledger-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ledger-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ledger-meta {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ledger-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.ledger-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.ledger-item-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.ledger-item-value {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-item-sub {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+@media (max-width: 840px) {
+  .ledger-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ledger-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── 3. Meal Journey Tracker ─────────────────────────────────────────────── */
+.journey-panel {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+
+.journey-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.journey-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.journey-listing-ref {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.journey-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  position: relative;
+}
+
+.journey-step {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.journey-step-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background-color: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.journey-step.done .journey-step-circle {
+  background-color: var(--graphite);
+  border-color: var(--graphite);
+  color: #FFFFFF;
+}
+
+.journey-step.active .journey-step-circle {
+  border-color: var(--graphite);
+  color: var(--graphite);
+}
+
+.journey-step-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.journey-step-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+@media (max-width: 640px) {
+  .journey-steps {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+/* ─── 4. Overview 2-Column Content ────────────────────────────────────────── */
+.overview-two-col {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 991px) {
+  .overview-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Numbered Clauses: How Rescue Works */
+.clauses-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+
+.clauses-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 14px;
+}
+
+.clause-item {
+  border-top: 2px solid var(--graphite);
+  padding-top: 12px;
+}
+
+.clause-num {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  display: block;
+}
+
+.clause-title {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.clause-text {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+@media (max-width: 768px) {
+  .clauses-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* Get Involved Rows */
+.actions-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  width: 100%;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.12s ease;
+}
+
+.action-row:last-child {
+  border-bottom: none;
+}
+
+.action-row:hover {
+  background-color: var(--surface-alt);
+}
+
+.action-row-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.action-row-num {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  width: 24px;
+}
+
+.action-row-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.action-row-desc {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* ─── 5. Rescue Hub Page Layout ───────────────────────────────────────────── */
+.hub-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .hub-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+}
+
+.filters-bar input,
+.filters-bar select {
+  height: 36px;
+  min-height: 36px;
+  font-size: 0.8125rem;
+}
+
+.detail-drawer-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  position: sticky;
+  top: calc(var(--topbar-height) + 16px);
+}
+
+.detail-image {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.detail-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-meta-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+}
+
+.detail-meta-item span:first-child {
+  color: var(--text-secondary);
+}
+
+.detail-meta-item span:last-child {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ─── 6. Post Surplus Food Form ───────────────────────────────────────────── */
+.post-food-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 991px) {
+  .post-food-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.proof-capture-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-alt);
+  padding: 32px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ai-audit-box {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.ai-audit-header {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+/* ─── 7. Standalone Auth Page (Split-Screen) ──────────────────────────────── */
+.auth-split-screen {
+  min-height: 100vh;
+  display: flex;
+  width: 100vw;
+  background-color: var(--canvas);
+}
+
+.auth-panel-graphite {
+  flex: 1;
+  background-color: var(--graphite);
+  color: #FFFFFF;
+  padding: 60px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  max-width: 500px;
+}
+
+.auth-panel-graphite h1 {
+  font-family: var(--font-serif);
+  font-size: 2.25rem;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin-bottom: 12px;
+}
+
+.auth-panel-graphite p {
+  color: var(--graphite-text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.auth-facts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin: 40px 0;
+}
+
+.auth-fact-item {
+  border-left: 2px solid #FFFFFF;
+  padding-left: 14px;
+}
+
+.auth-fact-item h4 {
+  color: #FFFFFF;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.auth-fact-item p {
+  color: var(--graphite-text-muted);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+.auth-panel-white {
+  flex: 1.2;
+  background-color: var(--surface);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 60px 56px;
+  max-width: 640px;
+  margin: auto;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.auth-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.auth-tab-btn.active {
+  color: var(--graphite);
+  border-bottom-color: var(--graphite);
+}
+
+.role-segmented-buttons {
+  display: flex;
+  background-color: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 3px;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.role-segment-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  min-height: 34px;
+}
+
+.role-segment-btn.active {
+  background-color: var(--surface);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 900px) {
+  .auth-split-screen {
+    flex-direction: column;
+  }
+  .auth-panel-graphite {
+    max-width: 100%;
+    padding: 36px 24px;
+  }
+  .auth-panel-white {
+    max-width: 100%;
+    padding: 36px 24px;
+  }
+}

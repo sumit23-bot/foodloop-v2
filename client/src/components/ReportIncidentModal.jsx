@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { X, ShieldAlert, AlertCircle, UploadCloud, FileText } from 'lucide-react';
 
 export const SEVERITY_LEVELS = [
   'Mild (no medical attention needed)',
@@ -77,9 +78,9 @@ export default function ReportIncidentModal({
       const data = await res.json();
       if (res.ok) {
         if (showToast) {
-          showToast('⚠️ Incident report filed successfully. Safety review initiated.');
+          showToast('Incident report filed successfully. Safety review initiated.');
         } else {
-          alert('⚠️ Incident report filed successfully.');
+          alert('Incident report filed successfully.');
         }
         if (onIncidentSubmitted) {
           onIncidentSubmitted(data);
@@ -90,7 +91,7 @@ export default function ReportIncidentModal({
       } else {
         alert(data.error || 'Failed to submit incident report.');
       }
-    } catch (err) {
+    } catch (_err) {
       alert('Network error while filing incident. Please try again.');
     } finally {
       setSubmitting(false);
@@ -100,235 +101,138 @@ export default function ReportIncidentModal({
   const isSerious = severity === 'Severe (hospitalization required)' || severity === 'Life-threatening (ICU / death)';
 
   return (
-    <div id="report-incident-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div 
-        className="auth-modal-card" 
-        style={{ 
-          maxWidth: '580px', 
-          width: '95%', 
-          maxHeight: '90vh', 
-          overflowY: 'auto',
-          background: '#0f172a',
-          border: '1.5px solid rgba(239, 68, 68, 0.4)',
-          borderRadius: '16px',
-          boxShadow: '0 25px 50px -12px rgba(239, 68, 68, 0.25)'
-        }}
-      >
-        <div className="modal-top-row" style={{ borderBottom: '1px solid #1e293b', paddingBottom: '12px', marginBottom: '14px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '20px' }}>⚠️</span>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f87171' }}>
-                Report Food Safety Incident
-              </h3>
-            </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-              Listing: <strong style={{ color: '#f1f5f9' }}>{listing.title}</strong>
-              {listing.donor_name && <span> | Donor: <strong style={{ color: '#cbd5e1' }}>{listing.donor_name}</strong></span>}
-            </p>
+    <div id="report-incident-modal" className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal-dialog-panel modal-wide" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShieldAlert size={18} strokeWidth={1.5} color="var(--status-critical-text)" />
+            <h3>Report Food Safety Incident</h3>
           </div>
-          <button type="button" className="close-x-btn" onClick={onClose} aria-label="Close Incident modal">✕</button>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {/* Legal Notice Box */}
-          <div style={{
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: '8px',
-            padding: '12px',
-            marginBottom: '16px',
-            fontSize: '12px',
-            color: '#fca5a5',
-            lineHeight: 1.5
-          }}>
-            <strong>⚖️ Statutory Safety Protocol:</strong> FoodLoop takes food contamination seriously under BNS Sections 274–275 &amp; FSSA 2006. If verified, medical bills are primarily the donor's liability, supported by FoodLoop's 20% Emergency Safety-Net for severe incidents.
-          </div>
+        <div className="modal-dialog-body">
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+            Listing: <strong>{listing.title}</strong>
+            {listing.donor_name && <span> | Donor: <strong>{listing.donor_name}</strong></span>}
+          </p>
 
-          {/* Severity Dropdown */}
-          <div className="form-group" style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '12px', color: '#e2e8f0', marginBottom: '6px', fontWeight: 700 }}>
-              Incident Severity Level <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <select
-              id="incident-severity-select"
-              value={severity}
-              onChange={(e) => setSeverity(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '8px',
-                border: '1px solid #334155',
-                background: '#1e293b',
-                color: '#f8fafc',
-                fontSize: '13px',
-                fontWeight: 600
-              }}
-              required
-            >
-              {SEVERITY_LEVELS.map(lvl => (
-                <option key={lvl} value={lvl}>{lvl}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Serious Risk Indicator */}
-          {isSerious && (
+          <form onSubmit={handleSubmit}>
             <div style={{
-              background: 'rgba(245, 158, 11, 0.12)',
-              border: '1px solid rgba(245, 158, 11, 0.4)',
-              color: '#fde68a',
-              fontSize: '11px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              marginBottom: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
+              backgroundColor: 'var(--status-critical-bg)',
+              border: '1px solid var(--status-critical-border)',
+              borderRadius: 'var(--radius-xs)',
+              padding: '12px 14px',
+              marginBottom: '16px',
+              fontSize: '0.8125rem',
+              color: 'var(--status-critical-text)'
             }}>
-              <span>🚨</span>
-              <span>
-                <strong>Serious Life Risk:</strong> Automatically qualifies for FoodLoop 20% Safety-Net co-payment and formal legal escalation referral.
-              </span>
+              Food contamination incidents are subject to review. If verified, medical bills are primarily the donor's liability, supported by platform emergency coverage for severe cases.
             </div>
-          )}
 
-          {/* Detailed Description */}
-          <div className="form-group" style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '12px', color: '#e2e8f0', marginBottom: '6px', fontWeight: 700 }}>
-              Description &amp; Medical Details <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <textarea
-              id="incident-description"
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe symptoms, number of people affected, hospital/clinic visited, and doctor's observation..."
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '8px',
-                border: '1px solid #334155',
-                background: '#1e293b',
-                color: '#f8fafc',
-                fontSize: '13px',
-                lineHeight: 1.5,
-                resize: 'vertical'
-              }}
-              required
-            />
-          </div>
-
-          {/* Medical Documents / Bill Upload */}
-          <div className="form-group" style={{ marginBottom: '18px' }}>
-            <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '6px', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
-              <span>📑 Medical Bills &amp; Prescriptions <span style={{ fontSize: '11px', color: '#64748b' }}>(Optional)</span></span>
-              {documents.length > 0 && <span style={{ color: '#34d399', fontSize: '11px' }}>{documents.length} attached</span>}
-            </label>
-            
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,application/pdf"
-              multiple
-              onChange={handleFileUpload}
-              style={{ display: 'none' }}
-            />
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              style={{
-                width: '100%',
-                padding: '10px',
-                background: '#1e293b',
-                color: '#38bdf8',
-                border: '1.5px dashed #38bdf8',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              <i className="fa-solid fa-file-medical"></i> Attach Hospital Bill / Prescription / Report
-            </button>
-
-            {documents.length > 0 && (
-              <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {documents.map((doc, idx) => (
-                  <span
-                    key={idx}
-                    style={{
-                      background: '#334155',
-                      color: '#f1f5f9',
-                      fontSize: '11px',
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    📄 {doc.name.length > 20 ? doc.name.slice(0, 18) + '...' : doc.name}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveDoc(idx)}
-                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}
-                    >
-                      ✕
-                    </button>
-                  </span>
+            <div className="form-group">
+              <label className="form-label" htmlFor="incident-severity-select">
+                Incident Severity Level
+              </label>
+              <select
+                id="incident-severity-select"
+                value={severity}
+                onChange={(e) => setSeverity(e.target.value)}
+                required
+              >
+                {SEVERITY_LEVELS.map(lvl => (
+                  <option key={lvl} value={lvl}>{lvl}</option>
                 ))}
+              </select>
+            </div>
+
+            {isSerious && (
+              <div style={{
+                backgroundColor: 'var(--status-expiring-bg)',
+                border: '1px solid var(--status-expiring-border)',
+                color: 'var(--status-expiring-text)',
+                fontSize: '0.75rem',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-xs)',
+                marginBottom: '14px'
+              }}>
+                Higher risk incidents automatically qualify for formal review and liability adjudication.
               </div>
             )}
-          </div>
 
-          {/* Form Actions */}
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '10px', borderTop: '1px solid #1e293b' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              style={{
-                padding: '10px 18px',
-                background: '#1e293b',
-                color: '#94a3b8',
-                border: '1px solid #334155',
-                borderRadius: '8px',
-                fontWeight: 600,
-                fontSize: '13px',
-                cursor: 'pointer'
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              id="submit-incident-btn"
-              disabled={submitting}
-              style={{
-                padding: '10px 22px',
-                background: submitting ? '#64748b' : 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 800,
-                fontSize: '13px',
-                cursor: submitting ? 'not-allowed' : 'pointer',
-                boxShadow: submitting ? 'none' : '0 4px 14px rgba(239, 68, 68, 0.4)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              {submitting ? 'Filing Incident...' : '⚠️ Submit Incident Report'}
-            </button>
-          </div>
-        </form>
+            <div className="form-group">
+              <label className="form-label" htmlFor="incident-desc-input">
+                Description &amp; Medical Details
+              </label>
+              <textarea
+                id="incident-desc-input"
+                rows={4}
+                placeholder="Describe symptoms, number of affected individuals, time elapsed since consumption..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                Supporting Medical Documents / Photos
+              </label>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <UploadCloud size={14} strokeWidth={1.5} />
+                  <span>Attach document (Max 5MB)</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={handleFileUpload}
+                />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                  {documents.length} attached
+                </span>
+              </div>
+
+              {documents.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                  {documents.map((doc, idx) => (
+                    <span 
+                      key={idx}
+                      className="status-chip info"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => handleRemoveDoc(idx)}
+                      title="Click to remove"
+                    >
+                      {doc.name} &times;
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-danger"
+                disabled={submitting}
+              >
+                {submitting ? 'Filing report...' : 'Submit Incident Report'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

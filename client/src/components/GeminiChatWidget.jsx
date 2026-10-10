@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Send, X, ExternalLink } from 'lucide-react';
 import TinyFishBadge from './tinyfish/TinyFishBadge';
 
-export default function GeminiChatWidget() {
-  const [isOpen, setIsOpen] = useState(false);
+export default function GeminiChatWidget({ isOpen, onClose }) {
   const [messages, setMessages] = useState([
     {
       sender: 'bot',
-      text: 'Namaste! 🙏 I am your FoodLoop Gemini AI Assistant. How can I help you today?'
+      text: 'Namaste. I am your FoodLoop AI Assistant. You can ask about surplus food guidelines, NGO Darpan claim requirements, 80G tax certificates, or our zero-waste animal feed loop.'
     }
   ]);
   const [input, setInput] = useState('');
@@ -46,197 +46,130 @@ export default function GeminiChatWidget() {
       });
 
       const data = await res.json();
-      const reply = data.reply || data.response || 'Namaste! FoodLoop AI system is active.';
+      const reply = data.reply || data.response || 'FoodLoop AI assistance is active. Please ask your food rescue query.';
       setMessages(prev => [...prev, { sender: 'bot', text: reply, sources: data.sources }]);
-    } catch (err) {
+    } catch (_err) {
       setMessages(prev => [...prev, {
         sender: 'bot',
-        text: '⚠️ Temporary connection issue with Gemini AI. You can reach emergency support at +91 8800 247 247.'
+        text: 'Temporary connection issue with the assistant. You can check the guidelines or reach out via the Contact page.'
       }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  return (
-    <div id="ai-support-widget" style={{ position: 'fixed', bottom: '85px', right: '24px', zIndex: 9999999, fontFamily: "'DM Sans', sans-serif" }}>
-      {/* Floating Launcher Toggle Button */}
-      <button 
-        type="button" 
-        id="ai-chat-launcher" 
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          width: '60px',
-          height: '60px',
-          borderRadius: '50%',
-          background: '#10b981',
-          border: '3px solid #ffffff',
-          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.7)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '28px',
-          transition: 'transform 0.2s',
-          pointerEvents: 'auto'
-        }}
-        title="Open Gemini AI Assistant"
-      >
-        🤖
-      </button>
+  if (!isOpen) return null;
 
-      {/* Chat Window Container */}
-      {isOpen && (
-        <div 
-          id="ai-chat-window" 
-          style={{
-            display: 'flex',
-            width: '360px',
-            height: '490px',
-            background: '#1e293b',
-            border: '1.5px solid #334155',
-            borderRadius: '16px',
-            boxShadow: '0 24px 50px rgba(0,0,0,0.95)',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            position: 'absolute',
-            bottom: '75px',
-            right: 0,
-            zIndex: 10000000
-          }}
-        >
-          {/* Chat Header */}
-          <div style={{ background: '#111827', padding: '14px 16px', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: '#10b981', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 800 }}>
-                🤖
-              </div>
-              <div>
-                <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#fff', margin: 0 }}>FoodLoop Gemini AI</h4>
-                <small style={{ fontSize: '11px', color: '#34d399', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '6px', height: '6px', background: '#34d399', borderRadius: '50%' }}></span> Live Online 24/7
-                </small>
-              </div>
-            </div>
+  return (
+    <div className="assistant-slideover-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="AI Assistant Slide-over">
+      <div 
+        className="assistant-slideover" 
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="slideover-header">
+          <div className="slideover-title-wrap">
+            <h3>Assistant</h3>
+            <p>FoodLoop verified protocol &amp; rescue queries.</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <TinyFishBadge />
             <button 
               type="button" 
-              onClick={() => setIsOpen(false)} 
-              style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}
+              className="slideover-close-btn" 
+              onClick={onClose}
+              aria-label="Close Assistant"
             >
-              ✕
+              <X size={18} strokeWidth={1.5} />
             </button>
           </div>
+        </div>
 
-          {/* Messages Body */}
-          <div id="ai-chat-messages" style={{ flex: 1, padding: '14px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', background: '#0b0f19' }}>
-            {messages.map((m, idx) => (
-              <div 
-                key={idx} 
-                style={{
-                  alignSelf: m.sender === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: '85%',
-                  background: m.sender === 'user' ? '#10b981' : '#1e293b',
-                  color: m.sender === 'user' ? '#000' : '#f8fafc',
-                  border: m.sender === 'user' ? 'none' : '1px solid #334155',
-                  padding: '10px 12px',
-                  borderRadius: m.sender === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                  fontSize: '12px',
-                  lineHeight: '1.4'
-                }}
-              >
-                {m.text}
-                {m.sources && m.sources.length > 0 && (
-                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(56, 189, 248, 0.25)', fontSize: '11px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', gap: '6px' }}>
-                      <span style={{ fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        🌐 Verified Sources:
-                      </span>
-                      <TinyFishBadge />
-                    </div>
-                    <ul style={{ margin: 0, paddingLeft: '16px', listStyleType: 'disc', color: '#94a3b8' }}>
-                      {m.sources.map((s, sIdx) => (
-                        <li key={sIdx} style={{ marginBottom: '4px' }}>
-                          <a 
-                            href={s.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            style={{ color: '#38bdf8', textDecoration: 'underline', wordBreak: 'break-word' }}
-                          >
-                            {s.title || s.url}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
+        <div className="slideover-body">
+          {messages.map((msg, idx) => (
+            <div key={idx} className="chat-message-row">
+              <div className={msg.sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-bot'}>
+                <div>{msg.text}</div>
+
+                {msg.sources && Array.isArray(msg.sources) && msg.sources.length > 0 && (
+                  <div className="chat-sources-block">
+                    <div className="chat-sources-title">Sources Retrieved:</div>
+                    {msg.sources.map((src, sIdx) => (
+                      <a 
+                        key={sIdx} 
+                        href={src.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="chat-source-item"
+                      >
+                        {src.title || src.url}
+                        <ExternalLink size={10} strokeWidth={1.5} style={{ display: 'inline', marginLeft: 4 }} />
+                      </a>
+                    ))}
                   </div>
                 )}
               </div>
-            ))}
+            </div>
+          ))}
 
-            {isLoading && (
-              <div style={{ alignSelf: 'flex-start', background: '#1e293b', border: '1px solid #334155', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', color: '#38bdf8' }}>
-                🤖 Gemini is thinking...
+          {isLoading && (
+            <div className="chat-message-row">
+              <div className="chat-bubble-bot">
+                <span>Checking FoodLoop knowledge base...</span>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Quick Suggestions Chips */}
-            {messages.length === 1 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                <button 
-                  type="button" 
-                  onClick={() => sendMessage('How to post food with live camera or gallery?')}
-                  style={{ background: '#334155', border: '1px solid #475569', color: '#38bdf8', fontSize: '10px', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
-                >
-                  🍲 Post Food
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => sendMessage('How to claim food with NGO Darpan ID?')}
-                  style={{ background: '#334155', border: '1px solid #475569', color: '#38bdf8', fontSize: '10px', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
-                >
-                  🏛️ NGO Claim
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => sendMessage('How does 80G tax certificate work?')}
-                  style={{ background: '#334155', border: '1px solid #475569', color: '#38bdf8', fontSize: '10px', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
-                >
-                  📜 80G Tax
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => sendMessage('What is Animal Feed and Biogas Loop?')}
-                  style={{ background: '#334155', border: '1px solid #475569', color: '#38bdf8', fontSize: '10px', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
-                >
-                  🐾 Animal Feed
-                </button>
-              </div>
-            )}
+          <div ref={messagesEndRef} />
+        </div>
 
-            <div ref={messagesEndRef} />
+        <div className="slideover-footer">
+          <div className="chat-suggestions-wrap">
+            <button 
+              type="button" 
+              className="chat-suggestion-chip"
+              onClick={() => sendMessage('How does the animal & gaushala loop work?')}
+            >
+              Animal feed rules
+            </button>
+            <button 
+              type="button" 
+              className="chat-suggestion-chip"
+              onClick={() => sendMessage('What are the pickup and QR handover requirements?')}
+            >
+              QR handover rules
+            </button>
+            <button 
+              type="button" 
+              className="chat-suggestion-chip"
+              onClick={() => sendMessage('How is surplus food verified before posting?')}
+            >
+              Verification protocol
+            </button>
           </div>
 
-          {/* Chat Input Area */}
           <form 
-            onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-            style={{ padding: '10px 12px', background: '#111827', borderTop: '1px solid #334155', display: 'flex', gap: '8px' }}
+            onSubmit={(e) => { e.preventDefault(); sendMessage(); }} 
+            style={{ display: 'flex', gap: '8px', marginTop: '12px' }}
           >
-            <input 
-              type="text" 
+            <input
+              type="text"
+              placeholder="Ask FoodLoop Assistant..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything about FoodLoop..." 
-              autoComplete="off" 
-              style={{ flex: 1, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '8px 12px', color: '#fff', fontSize: '12px', outline: 'none' }} 
+              disabled={isLoading}
+              style={{ flex: 1 }}
             />
             <button 
               type="submit" 
-              style={{ background: '#10b981', border: 'none', borderRadius: '8px', padding: '8px 14px', color: '#000', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+              className="btn btn-primary btn-sm"
+              disabled={isLoading || !input.trim()}
+              aria-label="Send message"
             >
-              ➤
+              <Send size={15} strokeWidth={1.5} />
             </button>
           </form>
         </div>
-      )}
+      </div>
     </div>
   );
 }

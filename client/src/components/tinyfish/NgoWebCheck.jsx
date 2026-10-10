@@ -59,13 +59,13 @@ function NgoWebCheckInner({ orgName = '', darpanId = '' }) {
           disabled={!canCheck || checking}
           className="tf-ngo-btn"
         >
-          {checking ? '🔍 Verifying Web Footprint...' : '🌐 Check Web Presence'}
+          {checking ? 'Verifying web footprint...' : 'Check web footprint'}
         </button>
         <TinyFishBadge />
       </div>
 
       {errorMsg && (
-        <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', marginTop: '4px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '4px' }}>
           {errorMsg}
         </div>
       )}
@@ -77,8 +77,8 @@ function NgoWebCheckInner({ orgName = '', darpanId = '' }) {
               Footprint: {result.confidence}
             </span>
             {result.darpan_id_seen && (
-              <span style={{ fontSize: '11px', background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '2px 6px', borderRadius: '4px' }}>
-                ✓ Darpan ID referenced
+              <span style={{ fontSize: '11px', background: 'var(--status-available-bg)', color: 'var(--status-available-text)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                Darpan ID referenced
               </span>
             )}
           </div>

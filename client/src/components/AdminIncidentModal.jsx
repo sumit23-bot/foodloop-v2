@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { X, ShieldAlert, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 
 export default function AdminIncidentModal({ isOpen, onClose, showToast }) {
   const [incidents, setIncidents] = useState([]);
@@ -74,18 +75,17 @@ export default function AdminIncidentModal({ isOpen, onClose, showToast }) {
         body: JSON.stringify(payload)
       });
 
-
       const updated = await res.json();
       if (res.ok) {
         if (showToast) {
-          showToast(`✅ Incident ${status === 'CONFIRMED' ? 'confirmed & resolved' : 'rejected'}`);
+          showToast(`Incident ${status === 'CONFIRMED' ? 'confirmed & resolved' : 'rejected'}`);
         }
         setSelectedIncident(updated);
         fetchIncidents();
       } else {
         alert(updated.error || 'Failed to update incident.');
       }
-    } catch (err) {
+    } catch (_err) {
       alert('Network error while resolving incident.');
     } finally {
       setActionLoading(false);
@@ -98,377 +98,158 @@ export default function AdminIncidentModal({ isOpen, onClose, showToast }) {
     severity === 'Severe (hospitalization required)' || 
     severity === 'Life-threatening (ICU / death)';
   const previewEscalates = !donorAgreed || isSevereOrLifeRisk;
-  const previewDonorShare = previewEscalates ? Math.round(bill * 0.8) : bill;
-  const previewPlatformShare = previewEscalates ? Math.round(bill * 0.2) : 0;
+
+  const previewDonorOwes = (!donorAgreed || isSevereOrLifeRisk) 
+    ? Math.round(bill * 0.8 * 100) / 100 
+    : Math.round(bill * 100) / 100;
+
+  const previewPlatformContrib = (!donorAgreed || isSevereOrLifeRisk) 
+    ? Math.round((bill - previewDonorOwes) * 100) / 100 
+    : 0;
 
   return (
-    <div id="admin-incidents-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div 
-        className="auth-modal-card" 
-        style={{ 
-          maxWidth: '900px', 
-          width: '95%', 
-          maxHeight: '90vh', 
-          display: 'flex', 
-          flexDirection: 'column',
-          background: '#0f172a',
-          border: '1.5px solid #475569',
-          borderRadius: '16px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)'
-        }}
-      >
-        {/* Top Header */}
-        <div className="modal-top-row" style={{ borderBottom: '1px solid #1e293b', paddingBottom: '12px', marginBottom: '12px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '20px' }}>⚖️</span>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                FoodLoop Safety Admin — Incident Liability &amp; Dispute Board
-              </h3>
-              <span style={{ background: '#ef4444', color: '#fff', fontSize: '11px', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>
-                ADMIN
-              </span>
-            </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-              Review food safety claims, apply statutory 80/20 liability split, and execute donor referrals.
-            </p>
+    <div className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal-dialog-panel modal-wide" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShieldAlert size={20} strokeWidth={1.5} color="var(--status-critical-text)" />
+            <h3>Safety Admin Liability Resolution</h3>
           </div>
-          <button type="button" className="close-x-btn" onClick={onClose} aria-label="Close Admin modal">✕</button>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
 
-        {/* Content Body: Left Column List + Right Column Detail/Action */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '16px', flex: 1, minHeight: '380px', overflow: 'hidden' }}>
+        <div className="modal-dialog-body" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px' }}>
           {/* Left Column: Incidents List */}
-          <div style={{
-            background: '#090d16',
-            border: '1px solid #1e293b',
-            borderRadius: '10px',
-            overflowY: 'auto',
-            padding: '8px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid #1e293b' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#94a3b8' }}>
-                Reported Incidents ({incidents.length})
-              </span>
-              <button 
-                type="button" 
-                onClick={fetchIncidents}
-                style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '11px', cursor: 'pointer' }}
-              >
-                🔄 Refresh
-              </button>
+          <div>
+            <div className="card-section-title">
+              <span>Reported Incidents</span>
+              <span className="status-chip info">{incidents.length} cases</span>
             </div>
 
             {loading ? (
-              <p style={{ padding: '20px', color: '#64748b', fontSize: '12px', textAlign: 'center' }}>Loading incidents...</p>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)' }}>Loading incidents...</p>
             ) : incidents.length === 0 ? (
-              <p style={{ padding: '30px 10px', color: '#64748b', fontSize: '12px', textAlign: 'center' }}>No safety incidents reported yet.</p>
-            ) : (
-              incidents.map((inc) => {
-                const isSelected = selectedIncident && (selectedIncident.id === inc.id || selectedIncident._id === inc._id);
-                const status = inc.status || 'REPORTED';
-                const statusBg = status === 'CONFIRMED' ? 'rgba(16, 185, 129, 0.2)' : status === 'REJECTED' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-                const statusColor = status === 'CONFIRMED' ? '#34d399' : status === 'REJECTED' ? '#94a3b8' : '#f87171';
-
-                return (
-                  <div
-                    key={inc.id || inc._id}
-                    onClick={() => handleSelect(inc)}
-                    style={{
-                      padding: '10px',
-                      borderRadius: '8px',
-                      marginBottom: '6px',
-                      background: isSelected ? 'rgba(56, 189, 248, 0.15)' : '#111827',
-                      border: isSelected ? '1px solid #38bdf8' : '1px solid #1e293b',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#f1f5f9' }}>
-                        {inc.listing_title || inc.listingTitle || 'Food Donation'}
-                      </span>
-                      <span style={{ background: statusBg, color: statusColor, fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                        {status}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8' }}>
-                      Donor: <strong style={{ color: '#cbd5e1' }}>{inc.donor_name || inc.donorName || 'Donor'}</strong>
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-                      {inc.severity}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Right Column: Active Incident Review & Liability Action */}
-          <div style={{
-            background: '#090d16',
-            border: '1px solid #1e293b',
-            borderRadius: '10px',
-            overflowY: 'auto',
-            padding: '16px',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            {!selectedIncident ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748b', fontSize: '13px' }}>
-                Select an incident from the left to inspect and review liability.
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-xs)' }}>
+                No active safety incidents on file.
               </div>
             ) : (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '15px', color: '#f8fafc' }}>
-                      {selectedIncident.listing_title || selectedIncident.listingTitle}
-                    </h4>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>
-                      Incident ID: {selectedIncident.id || selectedIncident._id}
-                    </span>
-                  </div>
-                  <span style={{
-                    padding: '3px 10px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    background: selectedIncident.status === 'CONFIRMED' ? 'rgba(16, 185, 129, 0.2)' : selectedIncident.status === 'REJECTED' ? '#334155' : 'rgba(239, 68, 68, 0.2)',
-                    color: selectedIncident.status === 'CONFIRMED' ? '#34d399' : selectedIncident.status === 'REJECTED' ? '#94a3b8' : '#f87171'
-                  }}>
-                    {selectedIncident.status}
-                  </span>
-                </div>
-
-                {/* Metadata Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: '#111827', padding: '10px', borderRadius: '8px', marginBottom: '12px', fontSize: '12px' }}>
-                  <div>
-                    <span style={{ color: '#64748b' }}>Donor:</span>{' '}
-                    <strong style={{ color: '#f1f5f9' }}>{selectedIncident.donor_name || selectedIncident.donorName}</strong>
-                    <div style={{ color: '#94a3b8', fontSize: '11px' }}>📞 {selectedIncident.donor_phone || selectedIncident.donorPhone || 'N/A'}</div>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748b' }}>Reporter:</span>{' '}
-                    <strong style={{ color: '#f1f5f9' }}>{selectedIncident.reporter_name || selectedIncident.reporterName}</strong>
-                    <div style={{ color: '#94a3b8', fontSize: '11px' }}>🏛️ {selectedIncident.reporter_org || selectedIncident.reporterOrg}</div>
-                  </div>
-                </div>
-
-                {/* Severity Badge */}
-                <div style={{ marginBottom: '12px' }}>
-                  <span style={{ fontSize: '12px', color: '#94a3b8', marginRight: '6px' }}>Severity:</span>
-                  <span style={{
-                    background: isSevereOrLifeRisk ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                    color: isSevereOrLifeRisk ? '#f87171' : '#fbbf24',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    fontWeight: 700
-                  }}>
-                    {selectedIncident.severity}
-                  </span>
-                </div>
-
-                {/* Incident Description */}
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>Reported Symptoms &amp; Notes</label>
-                  <div style={{ background: '#1e293b', padding: '10px 12px', borderRadius: '8px', fontSize: '12px', color: '#cbd5e1', marginTop: '4px', lineHeight: 1.5 }}>
-                    {selectedIncident.description}
-                  </div>
-                </div>
-
-                {/* Documents / Hospital bills */}
-                {selectedIncident.documents && selectedIncident.documents.length > 0 && (
-                  <div style={{ marginBottom: '14px' }}>
-                    <label style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Medical Records / Bills ({selectedIncident.documents.length})</label>
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px', flexWrap: 'wrap' }}>
-                      {selectedIncident.documents.map((doc, idx) => (
-                        <a
-                          key={idx}
-                          href={doc}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            background: '#1e293b',
-                            border: '1px solid #334155',
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            color: '#38bdf8',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            textDecoration: 'none',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          📄 View Document #{idx + 1}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* If already CONFIRMED: show confirmed settlement */}
-                {selectedIncident.status === 'CONFIRMED' ? (
-                  <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', borderRadius: '8px', padding: '14px', marginTop: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#34d399', fontWeight: 800, fontSize: '13px', marginBottom: '8px' }}>
-                      <span>✓</span> Finalized Incident Liability Resolution
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
-                      <div>
-                        <span style={{ color: '#94a3b8' }}>Verified Hospital Bill:</span>
-                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#f1f5f9' }}>
-                          ₹{(selectedIncident.verified_bill_amount || selectedIncident.verifiedBillAmount || 0).toLocaleString('en-IN')}
-                        </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '380px', overflowY: 'auto' }}>
+                {incidents.map((inc) => {
+                  const isSelected = selectedIncident && (selectedIncident.id === inc.id || selectedIncident._id === inc._id);
+                  return (
+                    <div
+                      key={inc.id || inc._id}
+                      onClick={() => handleSelect(inc)}
+                      style={{
+                        padding: '12px',
+                        border: isSelected ? '2px solid var(--graphite)' : '1px solid var(--border)',
+                        borderRadius: 'var(--radius-xs)',
+                        backgroundColor: isSelected ? 'var(--surface-alt)' : 'var(--surface)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{inc.listing_title || `Listing #${inc.listing_id}`}</span>
+                        <span className={`status-chip ${inc.status === 'CONFIRMED' ? 'available' : inc.status === 'REJECTED' ? 'critical' : 'expiring'}`}>
+                          {inc.status || 'REPORTED'}
+                        </span>
                       </div>
-                      <div>
-                        <span style={{ color: '#94a3b8' }}>Donor Payment Decision:</span>
-                        <div style={{ fontWeight: 700, color: (selectedIncident.donor_agreed_to_pay ?? selectedIncident.donorAgreedToPay) ? '#34d399' : '#f87171' }}>
-                          {(selectedIncident.donor_agreed_to_pay ?? selectedIncident.donorAgreedToPay) ? 'Agreed to pay' : 'Refused to pay'}
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ color: '#94a3b8' }}>Donor Primary Liability:</span>
-                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#fbbf24' }}>
-                          ₹{(selectedIncident.donor_owes ?? selectedIncident.donorOwes ?? 0).toLocaleString('en-IN')}
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ color: '#94a3b8' }}>FoodLoop 20% Contribution:</span>
-                        <div style={{ fontSize: '14px', fontWeight: 800, color: '#38bdf8' }}>
-                          ₹{(selectedIncident.platform_contribution ?? selectedIncident.platformContribution ?? 0).toLocaleString('en-IN')}
-                        </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Reporter: {inc.reporter_org || inc.reporter_name} · Severity: {inc.severity}
                       </div>
                     </div>
-
-                    {(selectedIncident.legal_escalation || selectedIncident.legalEscalation) && (
-                      <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(16, 185, 129, 0.2)', fontSize: '11px', color: '#fca5a5' }}>
-                        🚨 <strong>Formal Legal Escalation Active:</strong> Referred under {((selectedIncident.legal_basis || selectedIncident.legalBasis) || []).join(', ')}. Donor account trust score reduced to 0 &amp; suspended.
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* Admin Action Form for Pending Incidents */
-                  <div style={{ background: '#111827', border: '1px solid #334155', borderRadius: '8px', padding: '14px', marginTop: '10px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#f1f5f9', marginBottom: '10px' }}>
-                      ⚡ Admin Adjudication &amp; Liability Resolution
-                    </div>
-
-                    <div className="form-group" style={{ marginBottom: '10px' }}>
-                      <label style={{ fontSize: '11px', color: '#cbd5e1', marginBottom: '4px', fontWeight: 700 }}>
-                        Verified Hospital / Medical Bill (₹) <span style={{ color: '#ef4444' }}>*</span>
-                      </label>
-                      <input
-                        type="number"
-                        id="admin-verified-bill-input"
-                        placeholder="e.g. 50000"
-                        value={billAmount}
-                        onChange={(e) => setBillAmount(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: '6px',
-                          border: '1px solid #334155',
-                          background: '#1e293b',
-                          color: '#f8fafc',
-                          fontSize: '13px',
-                          fontWeight: 700
-                        }}
-                      />
-                    </div>
-
-                    <div className="form-group" style={{ marginBottom: '14px' }}>
-                      <label style={{ fontSize: '11px', color: '#cbd5e1', marginBottom: '4px', fontWeight: 700 }}>
-                        Donor Co-operation / Payment Agreement
-                      </label>
-                      <select
-                        id="admin-donor-agreed-select"
-                        value={donorAgreed ? 'true' : 'false'}
-                        onChange={(e) => setDonorAgreed(e.target.value === 'true')}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: '6px',
-                          border: '1px solid #334155',
-                          background: '#1e293b',
-                          color: '#f8fafc',
-                          fontSize: '12px',
-                          fontWeight: 600
-                        }}
-                      >
-                        <option value="true">🤝 Donor Agreed to Pay Full Medical Bill</option>
-                        <option value="false">🚫 Donor Refused to Pay / Serious Incident Escalation</option>
-                      </select>
-                    </div>
-
-                    {/* Real-time Calculation Preview */}
-                    {bill > 0 && (
-                      <div style={{ background: '#090d16', border: '1px dashed #334155', borderRadius: '8px', padding: '10px', marginBottom: '14px', fontSize: '12px' }}>
-                        <div style={{ fontWeight: 800, color: '#38bdf8', marginBottom: '6px' }}>
-                          Calculated Liability Split Preview:
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                          <span style={{ color: '#94a3b8' }}>Donor Share ({previewEscalates ? '80%' : '100%'}):</span>
-                          <strong style={{ color: '#fbbf24' }}>₹{previewDonorShare.toLocaleString('en-IN')}</strong>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                          <span style={{ color: '#94a3b8' }}>FoodLoop Safety-Net ({previewEscalates ? '20%' : '0%'}):</span>
-                          <strong style={{ color: '#34d399' }}>₹{previewPlatformShare.toLocaleString('en-IN')}</strong>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px', borderTop: '1px solid #1e293b' }}>
-                          <span style={{ color: '#94a3b8' }}>Legal Escalation:</span>
-                          <strong style={{ color: previewEscalates ? '#f87171' : '#34d399' }}>
-                            {previewEscalates ? '🚨 Triggered (BNS 274, 275 & FSSA 59)' : 'No (Amicable Resolution)'}
-                          </strong>
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                      <button
-                        type="button"
-                        onClick={() => handleResolve('REJECTED')}
-                        disabled={actionLoading}
-                        style={{
-                          padding: '8px 14px',
-                          background: '#334155',
-                          color: '#cbd5e1',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontWeight: 700,
-                          fontSize: '12px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Reject Incident
-                      </button>
-                      <button
-                        type="button"
-                        id="confirm-incident-resolution-btn"
-                        onClick={() => handleResolve('CONFIRMED')}
-                        disabled={actionLoading}
-                        style={{
-                          padding: '8px 18px',
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          color: '#000',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontWeight: 800,
-                          fontSize: '12px',
-                          cursor: actionLoading ? 'not-allowed' : 'pointer',
-                          boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                        }}
-                      >
-                        {actionLoading ? 'Confirming...' : 'Confirm & Apply Liability Split'}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  );
+                })}
               </div>
             )}
           </div>
+
+          {/* Right Column: Adjudication Form */}
+          {selectedIncident ? (
+            <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '20px' }}>
+              <div className="card-section-title">
+                <span>Adjudication &amp; Liability</span>
+              </div>
+
+              <div style={{ marginBottom: '14px', fontSize: '0.8125rem' }}>
+                <div><strong>Listing:</strong> {selectedIncident.listing_title}</div>
+                <div><strong>Donor:</strong> {selectedIncident.donor_name} (+91 {selectedIncident.donor_phone})</div>
+                <div><strong>Severity:</strong> {selectedIncident.severity}</div>
+                <div style={{ marginTop: '6px', color: 'var(--text-secondary)' }}>
+                  {selectedIncident.description}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Verified Medical Bill (₹)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 5000"
+                  value={billAmount}
+                  onChange={(e) => setBillAmount(e.target.value)}
+                  min="0"
+                />
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8125rem', marginBottom: '16px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={donorAgreed}
+                  onChange={(e) => setDonorAgreed(e.target.checked)}
+                />
+                <span>Donor agreed to settle expenses</span>
+              </label>
+
+              {/* Liability calculation summary */}
+              <div style={{ backgroundColor: 'var(--canvas)', padding: '12px', borderRadius: 'var(--radius-xs)', marginBottom: '16px', fontSize: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span>Donor liability (80% / 100%):</span>
+                  <strong>₹{previewDonorOwes.toLocaleString()}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span>Platform reserve (20%):</span>
+                  <strong>₹{previewPlatformContrib.toLocaleString()}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: previewEscalates ? 'var(--status-critical-text)' : 'var(--text-secondary)' }}>
+                  <span>Statutory escalation:</span>
+                  <strong>{previewEscalates ? 'Legal notice triggered' : 'Resolved amicably'}</strong>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={actionLoading}
+                  onClick={() => handleResolve('CONFIRMED')}
+                  style={{ flex: 1 }}
+                >
+                  Confirm &amp; Settle
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  disabled={actionLoading}
+                  onClick={() => handleResolve('REJECTED')}
+                  style={{ flex: 1 }}
+                >
+                  Reject Claim
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', fontSize: '0.8125rem' }}>
+              Select an incident from the list to adjudicate.
+            </div>
+          )}
+        </div>
+
+        <div className="modal-dialog-footer">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Close
+          </button>
         </div>
       </div>
     </div>

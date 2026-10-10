@@ -41,7 +41,7 @@ function LiveNewsTickerInner() {
       <section className="tf-news-section">
         <div className="container">
           <div className="tf-news-header">
-            <h3>📰 Live Food-Waste Headlines</h3>
+            <h3>Live Food-Waste Headlines</h3>
             <TinyFishBadge />
           </div>
           <div className="tf-news-grid">
@@ -67,7 +67,7 @@ function LiveNewsTickerInner() {
     <section className="tf-news-section">
       <div className="container">
         <div className="tf-news-header">
-          <h3>📰 Live Food-Waste Headlines</h3>
+          <h3>Live Food-Waste Headlines</h3>
           <TinyFishBadge />
         </div>
         <div className="tf-news-grid">

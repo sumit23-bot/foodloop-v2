@@ -56,8 +56,8 @@ function PartnerFinderInner({ defaultCity = 'Delhi' }) {
   return (
     <div className="tf-partner-box">
       <div className="tf-partner-header">
-        <h4 style={{ margin: 0, fontSize: '13px', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          🐾 Find Off-Grid Gaushala & Animal Partners
+        <h4 style={{ margin: 0, fontSize: '13px', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          Find Off-Grid Gaushala & Animal Partners
         </h4>
         <TinyFishBadge />
       </div>
@@ -83,14 +83,9 @@ function PartnerFinderInner({ defaultCity = 'Delhi' }) {
         <button 
           type="submit" 
           disabled={loading || !city.trim()}
+          className="btn btn-primary"
           style={{
-            background: '#10b981',
-            color: '#000',
-            fontWeight: 700,
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 14px',
-            cursor: 'pointer',
+            padding: '6px 12px',
             fontSize: '12px'
           }}
         >
@@ -99,7 +94,7 @@ function PartnerFinderInner({ defaultCity = 'Delhi' }) {
       </form>
 
       {errorMsg && (
-        <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', marginBottom: '8px' }}>
+        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '8px' }}>
           {errorMsg}
         </div>
       )}
@@ -107,24 +102,24 @@ function PartnerFinderInner({ defaultCity = 'Delhi' }) {
       {hasSearched && !loading && (
         <div>
           {partners.length === 0 ? (
-            <p style={{ fontSize: '11px', color: '#94a3b8', margin: '4px 0' }}>
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '4px 0' }}>
               No nearby live partners discovered for this location.
             </p>
           ) : (
             <div className="tf-partner-results">
-              <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontStyle: 'italic' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', fontStyle: 'italic' }}>
                 Suggestions from the public web - verify before contacting
               </div>
               {partners.map((p, idx) => (
                 <div key={idx} className="tf-partner-item">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <a href={p.url} target="_blank" rel="noopener noreferrer">
-                      {p.title || p.site_name || 'Partner Facility'} ↗
+                      {p.title || p.site_name || 'Partner Facility'} &rarr;
                     </a>
-                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>{p.site_name}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{p.site_name}</span>
                   </div>
                   {p.snippet && (
-                    <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#cbd5e1', lineHeight: '1.3' }}>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.3' }}>
                       {p.snippet}
                     </p>
                   )}

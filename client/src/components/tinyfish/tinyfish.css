@@ -1,109 +1,109 @@
-/* client/src/components/tinyfish/tinyfish.css */
-/* Dark-themed responsive styles for TinyFish components */
+/* TinyFish Integration Components - Design Tokens Theme */
 
 .tf-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: rgba(56, 189, 248, 0.12);
-  color: var(--blue-accent, #38bdf8);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  font-size: 10px;
+  background-color: var(--status-info-bg, #E3EDF6);
+  color: var(--status-info-text, #1F4E79);
+  border: 1px solid var(--status-info-border, #BED2E5);
+  font-size: 0.6875rem;
   font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 9999px;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs, 2px);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
   user-select: none;
   white-space: nowrap;
 }
 
 .tf-news-section {
-  padding: 24px 0 12px 0;
+  padding: 0;
+  margin-bottom: 24px;
 }
 
 .tf-news-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
-  gap: 10px;
-}
-
-.tf-news-header h3 {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-main, #f8fafc);
-  margin: 0;
-  display: flex;
-  align-items: center;
   gap: 8px;
 }
 
+.tf-news-header h3 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary, #5B636B);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .tf-news-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .tf-news-card {
-  background: var(--surface-1, #111827);
-  border: 1px solid var(--border-medium, #334155);
-  border-radius: 12px;
-  padding: 14px;
+  background-color: var(--surface, #FFFFFF);
+  border: 1px solid var(--border, #D9DDE1);
+  border-radius: var(--radius-sm, 4px);
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: border-color 0.12s ease;
 }
 
 .tf-news-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--blue-accent, #38bdf8);
+  border-color: var(--graphite, #1B1E22);
 }
 
 .tf-news-meta {
-  font-size: 11px;
-  color: var(--text-dim, #94a3b8);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary, #7F8892);
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .tf-news-title {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: var(--text-main, #f8fafc);
-  margin: 0 0 8px 0;
+  color: var(--text-primary, #1B1F23);
+  margin: 0 0 6px 0;
   line-height: 1.35;
 }
 
 .tf-news-snippet {
-  font-size: 12px;
-  color: var(--text-dim, #94a3b8);
-  line-height: 1.4;
-  margin: 0 0 12px 0;
-  flex-grow: 1;
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #5B636B);
+  line-height: 1.45;
+  margin: 0 0 10px 0;
 }
 
 .tf-news-link {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--primary, #10b981);
-  text-decoration: none;
+  color: var(--text-primary, #1B1F23);
+  text-decoration: underline;
   align-self: flex-start;
 }
 
 .tf-news-link:hover {
-  text-decoration: underline;
+  color: var(--graphite-hover, #2A2E34);
 }
 
 .tf-skeleton {
-  background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+  background: linear-gradient(90deg, #E5E7EB 25%, #F3F4F6 50%, #E5E7EB 75%);
   background-size: 200% 100%;
   animation: tf-shimmer 1.5s infinite;
-  border-radius: 6px;
+  border-radius: var(--radius-xs, 2px);
   height: 14px;
   margin-bottom: 8px;
 }
@@ -115,26 +115,26 @@
 
 /* NGO Web Check Widget */
 .tf-ngo-box {
-  margin-top: 10px;
-  padding: 12px;
-  background: var(--surface-2, #1e293b);
-  border: 1px dashed var(--border-medium, #334155);
-  border-radius: 10px;
+  margin-top: 12px;
+  padding: 14px;
+  background-color: var(--canvas, #F4F5F6);
+  border: 1px solid var(--border, #D9DDE1);
+  border-radius: var(--radius-xs, 2px);
 }
 
 .tf-ngo-btn {
-  background: #0284c7;
-  color: #fff;
+  background-color: var(--graphite, #1B1E22);
+  color: #FFFFFF;
   border: none;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: var(--radius-xs, 2px);
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: opacity 0.2s;
+  min-height: 32px;
 }
 
 .tf-ngo-btn:disabled {
@@ -144,63 +144,64 @@
 
 .tf-confidence-badge {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs, 2px);
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .tf-conf-HIGH {
-  background: rgba(16, 185, 129, 0.2);
-  color: #10b981;
-  border: 1px solid #10b981;
+  background-color: var(--status-available-bg, #E6F2EA);
+  color: var(--status-available-text, #1E6B3C);
+  border: 1px solid var(--status-available-border, #C2E2CE);
 }
 
 .tf-conf-MEDIUM {
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
-  border: 1px solid #38bdf8;
+  background-color: var(--status-info-bg, #E3EDF6);
+  color: var(--status-info-text, #1F4E79);
+  border: 1px solid var(--status-info-border, #BED2E5);
 }
 
 .tf-conf-LOW {
-  background: rgba(245, 158, 11, 0.2);
-  color: #f59e0b;
-  border: 1px solid #f59e0b;
+  background-color: var(--status-expiring-bg, #F8EBD6);
+  color: var(--status-expiring-text, #9A5B00);
+  border: 1px solid var(--status-expiring-border, #EED4AF);
 }
 
 .tf-conf-UNKNOWN {
-  background: rgba(148, 163, 184, 0.2);
-  color: #94a3b8;
-  border: 1px solid #94a3b8;
+  background-color: var(--canvas, #F4F5F6);
+  color: var(--text-tertiary, #7F8892);
+  border: 1px solid var(--border, #D9DDE1);
 }
 
 .tf-evidence-list {
   margin: 10px 0 6px 0;
   padding-left: 18px;
-  font-size: 11px;
-  color: var(--text-dim, #94a3b8);
+  font-size: 0.75rem;
+  color: var(--text-secondary, #5B636B);
 }
 
 .tf-evidence-list a {
-  color: var(--blue-accent, #38bdf8);
+  color: var(--status-info-text, #1F4E79);
   text-decoration: underline;
 }
 
 .tf-disclaimer {
-  font-size: 10px;
-  color: var(--text-dim, #94a3b8);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary, #7F8892);
   margin-top: 6px;
   font-style: italic;
 }
 
 /* Partner Finder Widget */
 .tf-partner-box {
-  background: var(--surface-1, #111827);
-  border: 1.5px solid var(--border-medium, #334155);
-  border-radius: 12px;
-  padding: 14px;
-  margin-bottom: 16px;
+  background-color: var(--surface, #FFFFFF);
+  border: 1px solid var(--border, #D9DDE1);
+  border-radius: var(--radius-sm, 4px);
+  padding: 16px;
+  margin-bottom: 20px;
 }
 
 .tf-partner-header {
@@ -220,18 +221,19 @@
 }
 
 .tf-input, .tf-select {
-  background: var(--surface-2, #1e293b);
-  border: 1px solid var(--border-medium, #334155);
-  color: var(--text-main, #f8fafc);
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 12px;
+  background-color: var(--surface, #FFFFFF);
+  border: 1px solid var(--border, #D9DDE1);
+  color: var(--text-primary, #1B1F23);
+  padding: 6px 10px;
+  border-radius: var(--radius-xs, 2px);
+  font-size: 0.8125rem;
   font-family: inherit;
   outline: none;
+  min-height: 36px;
 }
 
 .tf-input:focus, .tf-select:focus {
-  border-color: var(--primary, #10b981);
+  border-color: var(--graphite, #1B1E22);
 }
 
 .tf-partner-results {
@@ -241,27 +243,20 @@
 }
 
 .tf-partner-item {
-  background: var(--surface-2, #1e293b);
-  border: 1px solid var(--border-medium, #334155);
-  border-radius: 8px;
+  background-color: var(--surface-alt, #F9FAFB);
+  border: 1px solid var(--border, #D9DDE1);
+  border-radius: var(--radius-xs, 2px);
   padding: 10px 12px;
-  font-size: 12px;
+  font-size: 0.8125rem;
 }
 
 .tf-partner-item a {
-  color: var(--blue-accent, #38bdf8);
+  color: var(--status-info-text, #1F4E79);
   font-weight: 600;
-  text-decoration: none;
-}
-
-.tf-partner-item a:hover {
   text-decoration: underline;
 }
 
 @media (max-width: 480px) {
-  .tf-news-grid {
-    grid-template-columns: 1fr;
-  }
   .tf-partner-controls {
     flex-direction: column;
   }

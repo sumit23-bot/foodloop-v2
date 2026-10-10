@@ -1,4 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { 
+  RotateCw, 
+  MapPin, 
+  Phone, 
+  Lock, 
+  Unlock, 
+  Clock, 
+  AlertTriangle, 
+  QrCode, 
+  Camera, 
+  ShieldAlert, 
+  FileText, 
+  ExternalLink 
+} from 'lucide-react';
 import { calculateDistance } from '../data/directory';
 import PartnerFinder from './tinyfish/PartnerFinder';
 
@@ -27,404 +41,476 @@ export default function RescueFeeds({
   onRefresh, 
   onOpenDashboard,
   onOpenIncidentReport,
-  onOpenIncidentStatus
+  onOpenIncidentStatus,
+  externalSearch = ''
 }) {
   const isNGO = currentUser && (currentUser.role === 'NGO' || currentUser.role === 'ANIMAL_SHELTER');
 
-  // Filter listings based on current portal tab
-  const filteredListings = listings.filter(item => {
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [distanceFilter, setDistanceFilter] = useState('ALL'); // ALL, 5, 10, 20
+  const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, AVAILABLE, CLAIMED
+  const [sortOrder, setSortOrder] = useState('SOONEST'); // SOONEST, NEWEST
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  const effectiveSearch = (externalSearch || searchQuery).toLowerCase().trim();
+
+  const calculateRemainingMinutes = (createdAt, expiryHours) => {
+    const created = new Date(createdAt).getTime();
+    const expiry = created + (expiryHours * 60 * 60 * 1000);
+    const now = Date.now();
+    return Math.max(0, Math.floor((expiry - now) / (60 * 1000)));
+  };
+
+  const calculateRemainingTime = (createdAt, expiryHours) => {
+    const diffMin = calculateRemainingMinutes(createdAt, expiryHours);
+    const hours = Math.floor(diffMin / 60);
+    const mins = diffMin % 60;
+    if (diffMin <= 0) return 'Expired';
+    return `${hours}h ${mins}m remaining`;
+  };
+
+  // 1. Tab filtering
+  let filtered = listings.filter(item => {
     if (currentTab === 'ANIMAL') {
       return item.status === 'DIVERTED_TO_ANIMALS' || item.expiry_hours <= 1;
     }
     return item.status !== 'DIVERTED_TO_ANIMALS';
   });
 
-  const animalCount = listings.filter(item => item.status === 'DIVERTED_TO_ANIMALS' || item.expiry_hours <= 1).length;
+  // 2. Search query filter
+  if (effectiveSearch) {
+    filtered = filtered.filter(item => 
+      (item.title && item.title.toLowerCase().includes(effectiveSearch)) ||
+      (item.donor_name && item.donor_name.toLowerCase().includes(effectiveSearch)) ||
+      (item.address && item.address.toLowerCase().includes(effectiveSearch)) ||
+      (item.id && String(item.id).toLowerCase().includes(effectiveSearch))
+    );
+  }
 
-  const calculateRemainingTime = (createdAt, expiryHours) => {
-    const created = new Date(createdAt).getTime();
-    const expiry = created + (expiryHours * 60 * 60 * 1000);
-    const now = Date.now();
-    const diffMin = Math.max(0, Math.floor((expiry - now) / (60 * 1000)));
-    const hours = Math.floor(diffMin / 60);
-    const mins = diffMin % 60;
-    if (diffMin <= 0) return 'Expired';
-    return `${hours}h ${mins}m left`;
-  };
+  // 3. Status filter
+  if (statusFilter !== 'ALL') {
+    if (statusFilter === 'AVAILABLE') {
+      filtered = filtered.filter(item => item.status === 'AVAILABLE' && !item.claimed_by);
+    } else if (statusFilter === 'CLAIMED') {
+      filtered = filtered.filter(item => item.status === 'CLAIMED' || Boolean(item.claimed_by));
+    }
+  }
+
+  // 4. Distance filter
+  const userLat = userCoords?.lat ?? 28.6139;
+  const userLon = userCoords?.lon ?? 77.2090;
+
+  if (distanceFilter !== 'ALL') {
+    const maxKm = parseFloat(distanceFilter);
+    filtered = filtered.filter(item => {
+      const itemLat = item.coords?.lat ?? 28.6139;
+      const itemLon = item.coords?.lon ?? 77.2090;
+      const d = calculateDistance(userLat, userLon, itemLat, itemLon);
+      return d <= maxKm;
+    });
+  }
+
+  // 5. Sorting
+  filtered.sort((a, b) => {
+    if (sortOrder === 'SOONEST') {
+      return calculateRemainingMinutes(a.created_at, a.expiry_hours) - calculateRemainingMinutes(b.created_at, b.expiry_hours);
+    } else {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+  });
+
+  const activeSelected = selectedItem || filtered[0] || null;
 
   return (
-    <div className="feed-panel">
-      <div className="feed-heading">
-        <div>
-          <h3 id="feed-heading-title">
-            {currentTab === 'HUMAN' ? 'Nearby human donations' : '🐾 Animal & Gaushala Surplus Loop'}
-          </h3>
-          <p id="listing-count">
-            {filteredListings.length} {filteredListings.length === 1 ? 'active surplus listing' : 'active surplus listings'} available
-          </p>
-        </div>
-        <button 
-          className="icon-button" 
-          id="refresh-feed" 
-          type="button" 
-          onClick={onRefresh} 
-          aria-label="Refresh listings"
-          title="Refresh listings"
+    <div className="rescue-feeds-container">
+      {/* Search and Filters Bar */}
+      <div className="filters-bar">
+        <input
+          type="text"
+          placeholder="Search donor, food item, or zone..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ flex: 1, minWidth: '200px' }}
+          aria-label="Filter listings by search"
+        />
+
+        <select
+          value={distanceFilter}
+          onChange={(e) => setDistanceFilter(e.target.value)}
+          aria-label="Filter by distance"
         >
-          <i className="fa-solid fa-arrows-rotate"></i>
+          <option value="ALL">Distance: Any</option>
+          <option value="5">Within 5 km</option>
+          <option value="10">Within 10 km</option>
+          <option value="25">Within 25 km</option>
+        </select>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          aria-label="Filter by status"
+        >
+          <option value="ALL">Status: All active</option>
+          <option value="AVAILABLE">Available only</option>
+          <option value="CLAIMED">Claimed only</option>
+        </select>
+
+        <select
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value)}
+          aria-label="Sort listings"
+        >
+          <option value="SOONEST">Soonest expiry first</option>
+          <option value="NEWEST">Most recently posted</option>
+        </select>
+
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={onRefresh}
+          title="Refresh listings"
+          aria-label="Refresh listings"
+        >
+          <RotateCw size={14} strokeWidth={1.5} />
+          <span>Refresh</span>
         </button>
       </div>
 
-      {currentTab === 'ANIMAL' && currentUser && (isNGO || currentUser.role === 'ADMIN') && (
-        <PartnerFinder defaultCity={currentUser?.city || 'Delhi'} />
-      )}
+      {/* Information Banner */}
+      <div style={{
+        backgroundColor: 'var(--status-info-bg)',
+        border: '1px solid var(--status-info-border)',
+        borderRadius: 'var(--radius-xs)',
+        padding: '10px 16px',
+        marginBottom: '16px',
+        fontSize: '0.8125rem',
+        color: 'var(--status-info-text)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}>
+        <Lock size={15} strokeWidth={1.5} flexShrink={0} />
+        <span>
+          Donor phone number and exact address unlock after you claim. Verified NGO credentials required for dispatch.
+        </span>
+      </div>
 
-      <div className="listing-feed feed-list-scroll" id="foodloop-feed-list" aria-live="polite">
-        {filteredListings.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
-            <p style={{ fontSize: '18px', marginBottom: '8px' }}>🍃 No surplus listings in this loop right now.</p>
-            <small>New food posts will appear here in real-time.</small>
-          </div>
-        ) : (
-          filteredListings.map(item => {
-            const timeLeft = calculateRemainingTime(item.created_at, item.expiry_hours);
-            const isClaimed = Boolean(item.claimed_by || item.claimed_by_ngo || item.status === 'CLAIMED');
-            const isItemDonor = Boolean(
-              currentUser && (
-                currentUser.role === 'DONOR' ||
-                (currentUser.id && item.donor_id && String(currentUser.id) === String(item.donor_id)) ||
-                (currentUser.name && item.donor_name && currentUser.name.toLowerCase() === item.donor_name.toLowerCase()) ||
-                (currentUser.phone && item.phone && currentUser.phone === item.phone)
-              )
-            );
-            const isClaimant = Boolean(
-              currentUser && isClaimed && (
-                (item.claimed_by && (
-                  item.claimed_by.toLowerCase() === (currentUser.organization || '').toLowerCase() ||
-                  item.claimed_by.toLowerCase() === (currentUser.name || '').toLowerCase()
-                )) ||
-                (item.claimed_by_ngo && (
-                  item.claimed_by_ngo.toLowerCase() === (currentUser.organization || '').toLowerCase() ||
-                  item.claimed_by_ngo.toLowerCase() === (currentUser.name || '').toLowerCase()
-                )) ||
-                (item.claimant_phone && currentUser.phone && item.claimant_phone === currentUser.phone)
-              )
-            );
-            const canViewSensitiveDetails = Boolean(isItemDonor || isClaimant);
+      {/* Two-Column Ruled Table + Detail Drawer Layout */}
+      <div className="hub-layout">
+        {/* Left Column: Listings Ruled Table */}
+        <div className="table-responsive">
+          <table className="ruled-table">
+            <thead>
+              <tr>
+                <th>Food &amp; Quantity</th>
+                <th>Donor</th>
+                <th>Area</th>
+                <th>Remaining</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '32px' }}>
+                    No surplus consignments found matching your filters.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((item) => {
+                  const isClaimed = Boolean(item.claimed_by || item.claimed_by_ngo || item.status === 'CLAIMED');
+                  const isSelected = activeSelected && (activeSelected.id === item.id || activeSelected._id === item._id);
 
-            const itemLat = item.coords?.lat ?? 28.6139;
-            const itemLon = item.coords?.lon ?? 77.2090;
-            const userLat = userCoords?.lat ?? 28.6139;
-            const userLon = userCoords?.lon ?? 77.2090;
-            const distKm = calculateDistance(userLat, userLon, itemLat, itemLon);
-            const isNearby = distKm <= 0.3; // 300m limit
-
-            return (
-              <article key={item.id || item._id} className="feed-card" style={{
-                background: '#111827',
-                border: isClaimant ? '1.5px solid #10b981' : '1.5px solid #334155',
-                borderRadius: '12px',
-                padding: '16px',
-                marginBottom: '14px',
-                position: 'relative'
-              }}>
-                <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                  {item.image && (
-                    <img 
-                      src={item.image} 
-                      alt={item.title} 
-                      style={{ width: '80px', height: '80px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }} 
-                    />
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: 800, color: '#fff', margin: 0 }}>{item.title}</h4>
-                      <span style={{
-                        fontSize: '11px',
-                        fontWeight: 800,
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        background: isClaimant ? 'rgba(16, 185, 129, 0.25)' : isClaimed ? 'rgba(56, 189, 248, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                        color: isClaimant ? '#34d399' : isClaimed ? '#38bdf8' : '#34d399',
-                        border: isClaimant ? '1px solid #10b981' : isClaimed ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(16, 185, 129, 0.4)'
-                      }}>
-                        {isClaimant ? '🎉 Claimed by You' : isClaimed ? `🔒 Claimed (${item.claimed_by || item.claimed_by_ngo || 'Partner'})` : '🟢 Available'}
-                      </span>
-                    </div>
-
-                    <p style={{ fontSize: '13px', color: '#cbd5e1', marginBottom: '6px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-                      <span><strong>Qty:</strong> {item.quantity} · <strong>Donor:</strong> {item.donor_name}</span>
-                      {item.is_bulk !== undefined && (
-                        <span style={{
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: '4px',
-                          background: item.is_bulk ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                          color: item.is_bulk ? '#34d399' : '#fbbf24',
-                          border: item.is_bulk ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(245, 158, 11, 0.4)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          <i className={item.is_bulk ? "fa-solid fa-utensils" : "fa-solid fa-triangle-exclamation"}></i>
-                          {item.is_bulk 
-                            ? `Bulk Surplus (${item.estimated_servings_range || '10+ servings'})` 
-                            : `Small Portion (${item.estimated_servings_range || '1-4 servings'})`}
-                        </span>
-                      )}
-                    </p>
-
-                    {/* Pickup Address & General Location Area */}
-                    <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', lineHeight: 1.4 }}>
-                      {canViewSensitiveDetails ? (
-                        <>
-                          <span style={{ color: '#e2e8f0', fontWeight: 600 }}>📍 {item.address}</span>
-                          <span style={{ color: '#10b981', fontSize: '11px', fontWeight: 700, marginLeft: '6px' }}>
-                            <i className="fa-solid fa-unlock-keyhole"></i> Full Location Unlocked
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span style={{ color: '#cbd5e1' }}>📍 Approx. Area: {getApproxArea(item.address)}</span>
-                          <span style={{ color: '#38bdf8', fontSize: '11px', fontWeight: 600, marginLeft: '6px' }}>
-                            <i className="fa-solid fa-lock"></i> Exact address unlocked on claim
-                          </span>
-                        </>
-                      )}
-                      <span style={{ color: '#fbbf24', fontWeight: 700, marginLeft: '8px' }}>⏳ {timeLeft}</span>
-                    </p>
-
-                    {/* Sensitive Donor Mobile Contact: Revealed only to claimant or donor */}
-                    {canViewSensitiveDetails ? (
-                      <div style={{
-                        background: 'rgba(16, 185, 129, 0.12)',
-                        border: '1px solid rgba(16, 185, 129, 0.35)',
-                        borderRadius: '8px',
-                        padding: '8px 12px',
-                        marginBottom: '10px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '8px'
-                      }}>
-                        <div>
-                          <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', fontWeight: 700, letterSpacing: '0.5px' }}>
-                            🔓 {isItemDonor ? 'YOUR REGISTERED DONOR CONTACT' : 'REVEALED DONOR CONTACT'}
-                          </span>
-                          <strong style={{ fontSize: '13px', color: '#34d399', letterSpacing: '0.3px' }}>
-                            📞 {item.phone || (isItemDonor && currentUser?.phone ? currentUser.phone : 'Protected')}
-                          </strong>
+                  return (
+                    <tr 
+                      key={item.id || item._id}
+                      onClick={() => setSelectedItem(item)}
+                      style={{ 
+                        cursor: 'pointer',
+                        backgroundColor: isSelected ? 'var(--surface-alt)' : undefined
+                      }}
+                    >
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{item.title}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {item.quantity} · {item.category || 'Surplus'}
                         </div>
-                        {item.phone && (
-                          <a 
-                            href={`tel:${item.phone.replace(/\D/g, '')}`}
-                            style={{
-                              background: '#10b981',
-                              color: '#000',
-                              fontWeight: 800,
-                              fontSize: '11px',
-                              padding: '5px 12px',
-                              borderRadius: '6px',
-                              textDecoration: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 500 }}>{item.donor_name}</div>
+                      </td>
+                      <td>{getApproxArea(item.address)}</td>
+                      <td>
+                        <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: '0.8125rem' }}>
+                          {calculateRemainingTime(item.created_at, item.expiry_hours)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`status-chip ${isClaimed ? 'info' : 'available'}`}>
+                          {isClaimed ? 'Claimed' : 'Available'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedItem(item);
+                          }}
+                        >
+                          Details
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Right Column: Selected Consignment Detail Drawer */}
+        {activeSelected && (
+          <aside className="detail-drawer-card" aria-label="Consignment Detail Drawer">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span className="label-caps">Consignment Details</span>
+              <span className={`status-chip ${activeSelected.status === 'CLAIMED' ? 'info' : 'available'}`}>
+                {activeSelected.status === 'CLAIMED' ? 'Claimed' : 'Available'}
+              </span>
+            </div>
+
+            {activeSelected.image && (
+              <img
+                src={activeSelected.image}
+                alt={activeSelected.title}
+                className="detail-image"
+              />
+            )}
+
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', marginBottom: '4px' }}>
+              {activeSelected.title}
+            </h3>
+
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+              {activeSelected.quantity} · {activeSelected.category || 'Surplus Food'}
+            </p>
+
+            {/* Privacy sensitive details check */}
+            {(() => {
+              const isClaimed = Boolean(activeSelected.claimed_by || activeSelected.claimed_by_ngo || activeSelected.status === 'CLAIMED');
+              const isItemDonor = Boolean(
+                currentUser && (
+                  currentUser.role === 'DONOR' ||
+                  (currentUser.id && activeSelected.donor_id && String(currentUser.id) === String(activeSelected.donor_id)) ||
+                  (currentUser.name && activeSelected.donor_name && currentUser.name.toLowerCase() === activeSelected.donor_name.toLowerCase()) ||
+                  (currentUser.phone && activeSelected.phone && currentUser.phone === activeSelected.phone)
+                )
+              );
+              const isClaimant = Boolean(
+                currentUser && isClaimed && (
+                  (activeSelected.claimed_by && (
+                    activeSelected.claimed_by.toLowerCase() === (currentUser.organization || '').toLowerCase() ||
+                    activeSelected.claimed_by.toLowerCase() === (currentUser.name || '').toLowerCase()
+                  )) ||
+                  (activeSelected.claimed_by_ngo && (
+                    activeSelected.claimed_by_ngo.toLowerCase() === (currentUser.organization || '').toLowerCase() ||
+                    activeSelected.claimed_by_ngo.toLowerCase() === (currentUser.name || '').toLowerCase()
+                  )) ||
+                  (activeSelected.claimant_phone && currentUser.phone && activeSelected.claimant_phone === currentUser.phone)
+                )
+              );
+              const canViewSensitive = Boolean(isItemDonor || isClaimant);
+
+              const itemLat = activeSelected.coords?.lat ?? 28.6139;
+              const itemLon = activeSelected.coords?.lon ?? 77.2090;
+              const distKm = calculateDistance(userLat, userLon, itemLat, itemLon);
+              const isNearby = distKm <= 0.3; // 300m dispute radius
+
+              return (
+                <div>
+                  <div className="detail-meta-list">
+                    <div className="detail-meta-item">
+                      <span>Donor</span>
+                      <span>{activeSelected.donor_name}</span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span>Location</span>
+                      <span>{canViewSensitive ? activeSelected.address : getApproxArea(activeSelected.address)}</span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span>Distance</span>
+                      <span>{distKm.toFixed(1)} km</span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span>Remaining</span>
+                      <span>{calculateRemainingTime(activeSelected.created_at, activeSelected.expiry_hours)}</span>
+                    </div>
+                    {isClaimed && (
+                      <div className="detail-meta-item">
+                        <span>Claimant</span>
+                        <span>{activeSelected.claimed_by || activeSelected.claimed_by_ngo || 'Partner NGO'}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Inspection summary */}
+                  <div style={{
+                    backgroundColor: 'var(--canvas)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-xs)',
+                    padding: '12px',
+                    marginBottom: '16px',
+                    fontSize: '0.75rem'
+                  }}>
+                    <div style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px', color: 'var(--text-secondary)' }}>
+                      Inspection Summary
+                    </div>
+                    <div style={{ color: 'var(--text-primary)', marginBottom: '2px' }}>
+                      AI photo check: {activeSelected.is_food_verified ? 'Verified surplus food' : 'Pending verification'}
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)' }}>
+                      Geofence coordinate stamped at {itemLat.toFixed(4)}N, {itemLon.toFixed(4)}E
+                    </div>
+                  </div>
+
+                  {/* Donor contact unlock status */}
+                  {canViewSensitive ? (
+                    <div style={{
+                      backgroundColor: 'var(--status-available-bg)',
+                      border: '1px solid var(--status-available-border)',
+                      borderRadius: 'var(--radius-xs)',
+                      padding: '10px 12px',
+                      marginBottom: '14px',
+                      fontSize: '0.8125rem'
+                    }}>
+                      <div style={{ fontWeight: 700, color: 'var(--status-available-text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Unlock size={14} strokeWidth={1.5} />
+                        <span>Registered Donor Contact</span>
+                      </div>
+                      <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600 }}>{activeSelected.phone || 'Protected'}</span>
+                        {activeSelected.phone && (
+                          <a
+                            href={`tel:${activeSelected.phone.replace(/\D/g, '')}`}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '3px 8px', fontSize: '0.75rem' }}
                           >
-                            <i className="fa-solid fa-phone"></i> Call Donor
+                            <Phone size={12} strokeWidth={1.5} />
+                            <span>Call</span>
                           </a>
                         )}
                       </div>
-                    ) : (
-                      <div style={{
-                        fontSize: '11px',
-                        color: '#64748b',
-                        marginBottom: '10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}>
-                        <i className="fa-solid fa-shield-halved" style={{ color: '#94a3b8' }}></i>
-                        <span>Donor mobile number & exact location are protected. Claim pickup to reveal.</span>
+                    </div>
+                  ) : (
+                    <div style={{
+                      backgroundColor: 'var(--canvas)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-xs)',
+                      padding: '8px 12px',
+                      marginBottom: '14px',
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <Lock size={13} strokeWidth={1.5} />
+                      <span>Donor phone &amp; exact address unlock after claim.</span>
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {!isClaimed && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => onClaim(activeSelected)}
+                        style={{ width: '100%' }}
+                      >
+                        Claim pickup
+                      </button>
+                    )}
+
+                    {canViewSensitive && (
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${itemLat},${itemLon}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary"
+                        style={{ width: '100%', justifyContent: 'center' }}
+                      >
+                        <MapPin size={15} strokeWidth={1.5} />
+                        <span>Navigate to pickup</span>
+                      </a>
+                    )}
+
+                    {isItemDonor && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => onOpenQR(activeSelected)}
+                        style={{ width: '100%' }}
+                      >
+                        <QrCode size={15} strokeWidth={1.5} />
+                        <span>Show pickup QR</span>
+                      </button>
+                    )}
+
+                    {(isClaimant || isNGO) && isClaimed && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => onOpenScanner && onOpenScanner(activeSelected)}
+                        style={{ width: '100%' }}
+                      >
+                        <Camera size={15} strokeWidth={1.5} />
+                        <span>Scan handover code</span>
+                      </button>
+                    )}
+
+                    {isClaimant && isClaimed && (
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          onClick={() => onOpenIncidentReport && onOpenIncidentReport(activeSelected)}
+                          style={{ flex: 1 }}
+                        >
+                          Report safety issue
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => onOpenIncidentStatus && onOpenIncidentStatus(activeSelected)}
+                          style={{ flex: 1 }}
+                        >
+                          Safety status
+                        </button>
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      {!isClaimed && (
-                        <button 
-                          type="button" 
-                          onClick={() => onClaim(item)} 
-                          style={{
-                            background: '#10b981',
-                            color: '#000',
-                            fontWeight: 800,
-                            fontSize: '12px',
-                            padding: '6px 14px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          🏛️ Claim Pickup
-                        </button>
-                      )}
-
-                      {/* GPS Navigation: Unlocked only to claimant or donor */}
-                      {canViewSensitiveDetails ? (
-                        <a 
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${item.coords?.lat || 28.6139},${item.coords?.lon || 77.2090}`} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          style={{
-                            background: '#334155',
-                            color: '#fff',
-                            fontWeight: 700,
-                            fontSize: '12px',
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            textDecoration: 'none',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          🧭 Navigate to Pickup
-                        </a>
-                      ) : (
-                        <span 
-                          style={{
-                            background: '#1e293b',
-                            color: '#64748b',
-                            fontWeight: 700,
-                            fontSize: '12px',
-                            padding: '6px 12px',
-                            borderRadius: '6px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            cursor: 'not-allowed',
-                            border: '1px dashed #334155'
-                          }}
-                          title="Claim this donation first to unlock GPS navigation and exact pickup coordinates"
-                        >
-                          <i className="fa-solid fa-lock" style={{ fontSize: '10px' }}></i> Navigate (Locked)
-                        </span>
-                      )}
-
-                      {isItemDonor ? (
-                        <button 
-                          type="button" 
-                          onClick={() => onOpenQR(item)} 
-                          style={{
-                            background: '#1e293b',
-                            color: '#38bdf8',
-                            border: '1px solid #38bdf8',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          📲 Show Pickup QR
-                        </button>
-                      ) : (isClaimant || isNGO) && isClaimed ? (
-                        <button 
-                          type="button" 
-                          onClick={() => onOpenScanner && onOpenScanner(item)} 
-                          style={{
-                            background: '#064e3b',
-                            color: '#34d399',
-                            border: '1px solid #10b981',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          📷 Scan to Collect
-                        </button>
-                      ) : null}
-
-                      {isClaimant && isClaimed && (
-                        <>
-                          <button 
-                            type="button" 
-                            onClick={() => onOpenIncidentReport && onOpenIncidentReport(item)} 
-                            style={{
-                              background: 'rgba(239, 68, 68, 0.15)',
-                              color: '#f87171',
-                              border: '1px solid #ef4444',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              padding: '6px 10px',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                            title="Report food safety hazard or medical incident from this donation"
-                          >
-                            ⚠️ Report Food Safety Issue
-                          </button>
-                          <button 
-                            type="button" 
-                            onClick={() => onOpenIncidentStatus && onOpenIncidentStatus(item)} 
-                            style={{
-                              background: '#1e293b',
-                              color: '#38bdf8',
-                              border: '1px solid #38bdf8',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              padding: '6px 10px',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                            title="View incident liability and reimbursement status"
-                          >
-                            📋 Safety Status
-                          </button>
-                        </>
-                      )}
-
-                      {isNGO && (
-                        <button 
-                          type="button" 
-                          onClick={() => onOpenDispute(item)} 
-                          disabled={!isNearby}
-                          style={{
-                            background: 'transparent',
-                            color: '#f87171',
-                            border: '1px solid rgba(239, 68, 68, 0.4)',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            cursor: isNearby ? 'pointer' : 'not-allowed',
-                            opacity: isNearby ? 1 : 0.45
-                          }}
-                          title={
-                            isNearby
-                              ? "Report dispute (within 300m)"
-                              : `Must be at pickup site to dispute (${(distKm * 1000).toFixed(0)}m away, limit 300m)`
-                          }
-                        >
-                          🚩 Dispute
-                        </button>
-                      )}
-                    </div>
+                    {isNGO && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => onOpenDispute(activeSelected)}
+                        disabled={!isNearby}
+                        style={{ width: '100%', color: isNearby ? 'var(--status-critical-text)' : undefined }}
+                        title={isNearby ? 'Dispute listing (within 300m)' : `Must be at location (${(distKm * 1000).toFixed(0)}m away, limit 300m)`}
+                      >
+                        <ShieldAlert size={14} strokeWidth={1.5} />
+                        <span>Dispute consignment {isNearby ? '' : '(Locked >300m)'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
-              </article>
-            );
-          })
+              );
+            })()}
+          </aside>
         )}
       </div>
     </div>

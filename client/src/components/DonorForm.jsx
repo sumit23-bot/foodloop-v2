@@ -1,4 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Camera, 
+  UploadCloud, 
+  CheckCircle2, 
+  AlertCircle, 
+  RotateCw, 
+  MapPin, 
+  Clock, 
+  ShieldCheck, 
+  Lock, 
+  ArrowRight, 
+  ArrowLeft 
+} from 'lucide-react';
 import { TermsAndConditionsModal } from './Modals';
 
 export default function DonorForm({ 
@@ -8,6 +21,8 @@ export default function DonorForm({
   onSubmitDonationInitiate,
   showToast 
 }) {
+  const [currentStep, setCurrentStep] = useState(1); // 1: Capture proof, 2: Food details, 3: Review and submit
+
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Vegetarian');
   const [quantity, setQuantity] = useState('');
@@ -65,7 +80,7 @@ export default function DonorForm({
     };
   }, []);
 
-  // Sync phone when currentUser changes (e.g. demo login or persona switch)
+  // Sync phone when currentUser changes
   useEffect(() => {
     if (currentUser?.phone) {
       setPhone(currentUser.phone);
@@ -101,17 +116,17 @@ export default function DonorForm({
           });
           if (res.ok) {
             const data = await res.json();
-            const formatted = data.display_name || `GPS: ${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`;
+            const formatted = data.display_name || `GPS: ${lat.toFixed(4)}N, ${lon.toFixed(4)}E`;
             setAddress(formatted);
             const shortName = data.address?.suburb || data.address?.neighbourhood || data.address?.road || data.address?.city || 'Your current location';
-            if (showToast) showToast(`📍 Location detected: ${shortName}`);
+            if (showToast) showToast(`Location detected: ${shortName}`);
           } else {
-            setAddress(`GPS: ${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`);
-            if (showToast) showToast(`📍 GPS coordinates acquired`);
+            setAddress(`GPS: ${lat.toFixed(4)}N, ${lon.toFixed(4)}E`);
+            if (showToast) showToast('GPS coordinates acquired');
           }
-        } catch (err) {
-          setAddress(`GPS: ${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`);
-          if (showToast) showToast(`📍 GPS coordinates acquired`);
+        } catch (_err) {
+          setAddress(`GPS: ${lat.toFixed(4)}N, ${lon.toFixed(4)}E`);
+          if (showToast) showToast('GPS coordinates acquired');
         } finally {
           setGpsLoading(false);
         }
@@ -171,7 +186,7 @@ export default function DonorForm({
     setShowDropdown(false);
     if (showToast) {
       const short = (item.display_name || '').split(',')[0];
-      showToast(`📍 Selected: ${short}`);
+      showToast(`Selected: ${short}`);
     }
   };
 
@@ -185,7 +200,7 @@ export default function DonorForm({
       setAddress('The Grand Heritage Banquet, Sector 29, Gurgaon, Delhi-NCR');
       setCustomCoords({ lat: 28.4695, lon: 77.0658 });
     }
-    if (showToast) showToast(`⚡ Fast-Track Preset: "${presetTitle}" loaded!`);
+    if (showToast) showToast(`Preset loaded: "${presetTitle}"`);
   };
 
   // Camera Management
@@ -196,7 +211,7 @@ export default function DonorForm({
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 } }
         });
-      } catch (envErr) {
+      } catch (_envErr) {
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
       }
 
@@ -217,7 +232,7 @@ export default function DonorForm({
       setTimeout(attachVideo, 150);
     } catch (err) {
       console.warn('Camera access failed:', err);
-      alert('Camera access denied or unavailable: ' + err.message + '\n\nPlease check browser permissions or use "Upload from Gallery".');
+      alert('Camera access denied or unavailable: ' + err.message + '\n\nPlease check browser permissions or use "Upload from gallery".');
     }
   };
 
@@ -253,7 +268,7 @@ export default function DonorForm({
         const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
         const coordsStr = coords 
-          ? `${coords.lat.toFixed(4)}°N, ${coords.lon.toFixed(4)}°E` 
+          ? `${coords.lat.toFixed(4)}N, ${coords.lon.toFixed(4)}E` 
           : 'Location Unavailable';
 
         const fontSize = Math.max(12, Math.floor(canvas.width * 0.024));
@@ -263,27 +278,27 @@ export default function DonorForm({
         const boxX = 12;
         const boxY = canvas.height - boxHeight - 12;
 
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.fillStyle = 'rgba(27, 30, 34, 0.92)';
         if (typeof ctx.roundRect === 'function') {
           ctx.beginPath();
-          ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
+          ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 4);
           ctx.fill();
         } else {
           ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
         }
-        ctx.fillStyle = '#10b981';
+        ctx.fillStyle = '#1E6B3C';
         ctx.fillRect(boxX, boxY, 4, boxHeight);
 
-        ctx.font = `bold ${fontSize}px "Courier New", Courier, monospace`;
-        ctx.fillStyle = '#34d399';
-        ctx.fillText('🛡️ FoodLoop Verified Live Proof', boxX + padding + 4, boxY + fontSize * 1.2);
+        ctx.font = `bold ${fontSize}px "Public Sans", sans-serif`;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText('FoodLoop Verified Live Proof', boxX + padding + 4, boxY + fontSize * 1.2);
 
-        ctx.font = `${Math.floor(fontSize * 0.88)}px "Courier New", Courier, monospace`;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(`📅 ${dateStr} ${timeStr}`, boxX + padding + 4, boxY + fontSize * 2.3);
+        ctx.font = `${Math.floor(fontSize * 0.88)}px "Public Sans", sans-serif`;
+        ctx.fillStyle = '#D9DDE1';
+        ctx.fillText(`${dateStr} ${timeStr}`, boxX + padding + 4, boxY + fontSize * 2.3);
 
-        ctx.fillStyle = '#38bdf8';
-        ctx.fillText(`📍 GPS: ${coordsStr}`, boxX + padding + 4, boxY + fontSize * 3.3);
+        ctx.fillStyle = '#A0AEC0';
+        ctx.fillText(`GPS: ${coordsStr}`, boxX + padding + 4, boxY + fontSize * 3.3);
 
         resolve(canvas.toDataURL('image/jpeg', 0.90));
       };
@@ -355,7 +370,7 @@ export default function DonorForm({
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('❌ Please select an image file (JPEG, PNG, etc.)');
+      alert('Please select an image file (JPEG, PNG, etc.)');
       return;
     }
 
@@ -363,7 +378,6 @@ export default function DonorForm({
     reader.onload = async (uploadEvt) => {
       const originalBase64 = uploadEvt.target.result;
       stopCamera();
-      // Downscale immediately so memory and upload payload are tiny
       const readyBase64 = await downscaleImageForVerification(originalBase64, 800, 0.82);
       setImagePreview(readyBase64);
       setIsLiveCapture(false);
@@ -386,7 +400,7 @@ export default function DonorForm({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // AI Verification Routine with 12s Client Timeout
+  // AI Verification Routine
   const triggerAIVerification = async (base64) => {
     if (!base64) return;
     setAiState({ 
@@ -402,7 +416,6 @@ export default function DonorForm({
     const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     try {
-      // Ensure image is reasonably sized before transmission
       const payloadBase64 = await downscaleImageForVerification(base64, 800, 0.82);
 
       const res = await fetch('/api/ai/verify-food', {
@@ -450,61 +463,69 @@ export default function DonorForm({
         is_bulk: false,
         quantity_level: 'LOW_QUANTITY',
         estimated_servings_range: '',
+        verification_token: '',
         retryable: true
       });
     }
   };
 
+  // Form Submission
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
 
     if (!currentUser) {
-      alert('🔒 Access Restricted: Please Login or Register as a Donor/Restaurant to post surplus food.');
+      alert('Please Sign In before posting surplus food.');
       return;
     }
 
     if (!imagePreview) {
-      alert('❌ Photo Proof is Mandatory!\n\nPlease capture a live photo or upload from your gallery.');
+      alert('Please capture or upload food photo proof before publishing.');
+      setCurrentStep(1);
       return;
     }
 
     if (aiState.status === 'LOADING') {
-      alert('⏳ AI Verification in Progress\n\nPlease wait a moment — the AI is still inspecting your photo.');
+      alert('AI food verification in progress. Please wait.');
       return;
     }
 
-    if (aiState.status !== 'VERIFIED') {
-      alert(`❌ Food Not Verified\n\n${aiState.reason || 'The AI could not confirm this image contains real edible food.'}\n\nPlease retake or upload a clear photo of the food.`);
+    if (aiState.status === 'REJECTED' && !aiState.retryable) {
+      alert('AI check did not verify food in this photo. Please retake photo proof.');
+      setCurrentStep(1);
       return;
     }
 
     if (!title.trim()) {
-      alert('⚠️ Please enter a food item description.');
+      alert('Please provide a Food Title / Description.');
+      setCurrentStep(2);
       return;
     }
 
     const cleanQty = quantity.trim();
-    const extractedNum = parseInt(cleanQty.replace(/\D/g, '') || '0');
-    if (extractedNum > 0 && extractedNum < 10) {
-      alert('⚠️ Minimum Surplus Policy Violation:\n\nFoodLoop is designed for surplus rescue (Banquet, Restaurant, Caterers). Minimum threshold is 10+ servings.');
+    if (!cleanQty) {
+      alert('Please specify the quantity (e.g., 20 servings, 35 packets).');
+      setCurrentStep(2);
       return;
     }
 
-    if (aiState.quantity_level === 'LOW_QUANTITY' || !aiState.is_bulk) {
-      const confirmLow = window.confirm(
-        `⚠️ Low Quantity Warning:\n\nThe AI analysis detected that this photo appears to show a small or single portion (${aiState.estimated_servings_range || '1-4 servings'}).\n\nFoodLoop is designed for bulk surplus rescue (10+ servings).\n\nDo you want to proceed with posting this donation anyway?`
-      );
-      if (!confirmLow) return;
+    const match = cleanQty.match(/\d+/);
+    const parsedQty = match ? parseInt(match[0], 10) : 0;
+    if (parsedQty < 10) {
+      alert('Minimum 10 Meals Required!\n\nFoodLoop is designed for bulk surplus rescue. Please enter at least 10 meals.');
+      setCurrentStep(2);
+      return;
     }
 
     if (!address.trim()) {
-      alert('⚠️ Please provide a pickup address or click "🎯 Use Live GPS".');
+      alert('Please provide a pickup address or click "Auto-locate GPS".');
+      setCurrentStep(2);
       return;
     }
 
     const cleanPhone = phone.replace(/\D/g, '').slice(-10);
     if (cleanPhone.length !== 10 || ['1234567890', '0000000000', '9999999999'].includes(cleanPhone)) {
-      alert('❌ Invalid Contact Phone Number!\n\nPlease enter a valid 10-digit Indian mobile number.');
+      alert('Invalid Contact Phone Number. Please enter a valid 10-digit Indian mobile number.');
+      setCurrentStep(2);
       return;
     }
 
@@ -523,7 +544,7 @@ export default function DonorForm({
       title: title.trim(),
       category,
       quantity: cleanQty,
-      expiry_hours: parseInt(windowHours),
+      expiry_hours: parseInt(windowHours, 10),
       address: address.trim(),
       phone: cleanPhone,
       donor_name: currentUser.name || currentUser.organization || 'Registered Donor',
@@ -567,525 +588,562 @@ export default function DonorForm({
   };
 
   return (
-    <div id="donor-form-container">
-      <form className="donor-form" id="donor-form" onSubmit={handleSubmit}>
-        <div className="form-heading">
-          <span className="form-icon"><i className="fa-solid fa-plus"></i></span>
-          <div>
-            <h3>Post a donation</h3>
-            <p>Share surplus meals with verified NGOs & shelters.</p>
-          </div>
-        </div>
+    <div className="post-surplus-container">
+      {/* 3-Step Stepper Navigation */}
+      <nav className="stepper-nav" aria-label="Donation posting steps">
+        <button
+          type="button"
+          className={`stepper-item ${currentStep === 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}
+          onClick={() => setCurrentStep(1)}
+        >
+          <span className="stepper-number">01</span>
+          <span>Capture proof</span>
+        </button>
 
-        {/* Fast-Track Presets */}
-        <div className="preset-wrap">
-          <span className="preset-label">⚡ Fast-Track Presets</span>
-          <div className="preset-btns">
-            <button type="button" className="preset-btn" onClick={() => applyPreset('Buffet Surplus: 50 Rice, Dal & Sabzi', 'Vegetarian', '50 servings', 3)}>
-              🍛 Buffet (50 pax)
-            </button>
-            <button type="button" className="preset-btn" onClick={() => applyPreset('Bakery Surplus: Fresh Bread & Buns', 'Vegetarian', '30 packets', 4)}>
-              🍞 Bakery Box (30 pcs)
-            </button>
-            <button type="button" className="preset-btn" onClick={() => applyPreset('Event Meal Boxes (Paneer & Roti)', 'Vegetarian', '40 boxes', 2)}>
-              🍱 Packed Meals (40 box)
-            </button>
-            <button 
-              type="button" 
-              className="preset-btn" 
-              onClick={() => applyPreset('Immediate Surplus (Short Window): 25 Meals', 'Vegetarian', '25 servings', 1)}
-              style={{ borderColor: '#fbbf24', color: '#fbbf24' }}
-            >
-              🚨 Short Window (&lt;1h Animal/Bio)
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          className={`stepper-item ${currentStep === 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}
+          onClick={() => {
+            if (imagePreview) setCurrentStep(2);
+            else alert('Please capture or select proof first.');
+          }}
+        >
+          <span className="stepper-number">02</span>
+          <span>Food details</span>
+        </button>
 
-        {/* Photo Proof Section (Camera & Gallery) */}
-        <div className="form-group">
-          <div className="label-row">
-            <label>📸 Photo Proof <span style={{ color: '#f87171', fontWeight: 800 }}>* (Camera or Gallery)</span></label>
-            <div className="proof-toggle-btns" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button 
-                type="button" 
-                onClick={startCamera} 
-                style={{ background: '#10b981', color: '#000', fontWeight: 800, padding: '6px 14px', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
-              >
-                📷 Open Live Camera
-              </button>
-              <button 
-                type="button" 
-                onClick={() => fileInputRef.current?.click()} 
-                style={{ background: '#3b82f6', color: '#fff', fontWeight: 800, padding: '6px 14px', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
-              >
-                📁 Upload from Gallery
-              </button>
-              <input 
-                ref={fileInputRef}
-                type="file" 
-                id="gallery-file-input" 
-                accept="image/*" 
-                style={{ display: 'none' }} 
-                onChange={handleGalleryUpload} 
-              />
-            </div>
-          </div>
+        <button
+          type="button"
+          className={`stepper-item ${currentStep === 3 ? 'active' : ''}`}
+          onClick={() => {
+            if (imagePreview && title && quantity && address) setCurrentStep(3);
+            else alert('Please complete steps 1 and 2 first.');
+          }}
+        >
+          <span className="stepper-number">03</span>
+          <span>Review &amp; submit</span>
+        </button>
+      </nav>
 
-          <div id="camera-box" style={{ border: '2px dashed #475569', borderRadius: '12px', overflow: 'hidden', position: 'relative', background: '#0b0f19', minHeight: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '12px' }}>
-            
-            {/* Initial Placeholder */}
-            {!isCameraActive && !imagePreview && (
-              <div id="start-cam-placeholder">
-                <span style={{ color: '#cbd5e1', fontSize: '13px' }}>
-                  Click <strong>"📷 Open Live Camera"</strong> to capture a live photo, or <strong>"📁 Upload from Gallery"</strong> to select an existing photo. All photos are AI-verified before submission.
-                </span>
-              </div>
-            )}
+      {/* Main Grid: Form Left, Summary & Rules Right */}
+      <div className="post-food-grid">
+        {/* Left Column: Current Step Content */}
+        <div className="surface-card" style={{ padding: '24px' }}>
+          {/* STEP 1: CAPTURE PROOF */}
+          {currentStep === 1 && (
+            <div>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', marginBottom: '4px' }}>
+                Step 1: Capture proof
+              </h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Upload or capture live photos of the surplus food. Real-time verification is performed before publishing.
+              </p>
 
-            {/* Live Video Feed */}
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted
-              style={{ width: '100%', maxHeight: '280px', objectFit: 'cover', display: isCameraActive ? 'block' : 'none', borderRadius: '8px' }} 
-            />
+              <div className="proof-capture-area">
+                {!isCameraActive && !imagePreview && (
+                  <>
+                    <UploadCloud size={36} strokeWidth={1.5} color="var(--text-secondary)" />
+                    <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                      Take photo proof or upload from device
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', maxWidth: '380px' }}>
+                      Suggested views: Full batch / container shot, seal or cover status, food condition.
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={startCamera}
+                      >
+                        <Camera size={16} strokeWidth={1.5} />
+                        <span>Use camera</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <UploadCloud size={16} strokeWidth={1.5} />
+                        <span>Choose from gallery</span>
+                      </button>
+                    </div>
+                  </>
+                )}
 
-            {/* Camera Controls */}
-            {isCameraActive && (
-              <div id="cam-controls" style={{ display: 'flex', position: 'absolute', bottom: '12px', left: 0, right: 0, justifyContent: 'center', gap: '10px', zIndex: 10 }}>
-                <button 
-                  type="button" 
-                  className="cam-btn-capture" 
-                  onClick={capturePhoto} 
-                  style={{ background: '#ef4444', color: '#fff', fontWeight: 800, border: 'none', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)' }}
-                >
-                  🔴 Capture Live Proof
-                </button>
-                <button 
-                  type="button" 
-                  className="cam-btn-close" 
-                  onClick={stopCamera} 
-                  style={{ background: '#334155', color: '#fff', fontWeight: 700, border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer' }}
-                >
-                  ✕ Close Cam
-                </button>
-              </div>
-            )}
-
-            {/* Captured / Uploaded Image Preview */}
-            {imagePreview && (
-              <div id="image-preview-container" style={{ display: 'block', width: '100%', position: 'relative' }}>
-                <img 
-                  id="food-image-preview" 
-                  src={imagePreview} 
-                  alt="Proof" 
-                  style={{ width: '100%', maxHeight: '280px', objectFit: 'cover', borderRadius: '8px', display: 'block' }} 
+                {/* Video Feed */}
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: '100%',
+                    maxHeight: '320px',
+                    objectFit: 'cover',
+                    display: isCameraActive ? 'block' : 'none',
+                    borderRadius: 'var(--radius-xs)'
+                  }}
                 />
 
-                {/* Top-Left AI Status Pill */}
+                {isCameraActive && (
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={capturePhoto}
+                    >
+                      <Camera size={16} strokeWidth={1.5} />
+                      <span>Capture photo</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={stopCamera}
+                    >
+                      Close camera
+                    </button>
+                  </div>
+                )}
+
+                {/* Image Preview */}
+                {imagePreview && (
+                  <div style={{ width: '100%', textAlign: 'center' }}>
+                    <img
+                      src={imagePreview}
+                      alt="Food Proof Preview"
+                      style={{
+                        width: '100%',
+                        maxHeight: '300px',
+                        objectFit: 'cover',
+                        borderRadius: 'var(--radius-xs)',
+                        border: '1px solid var(--border)'
+                      }}
+                    />
+                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={retakePhoto}
+                      >
+                        Retake photo
+                      </button>
+                      {aiState.retryable && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => triggerAIVerification(imagePreview)}
+                        >
+                          <RotateCw size={14} strokeWidth={1.5} />
+                          <span>Retry check</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleGalleryUpload}
+                />
+              </div>
+
+              {/* AI Photo Check Audit Panel */}
+              <div className="ai-audit-box">
+                <div className="ai-audit-header">AI Photo Check Audit</div>
+                {aiState.status === 'IDLE' && (
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                    Capture or upload a photo to perform visual inspection.
+                  </div>
+                )}
                 {aiState.status === 'LOADING' && (
-                  <span style={{
-                    position: 'absolute',
-                    top: '10px',
-                    left: '10px',
-                    background: 'rgba(15, 23, 42, 0.90)',
-                    color: '#38bdf8',
-                    border: '1px solid rgba(56, 189, 248, 0.5)',
-                    backdropFilter: 'blur(6px)',
-                    padding: '5px 10px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    zIndex: 100,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
-                  }}>
-                    <i className="fa-solid fa-spinner fa-spin"></i> Verifying with AI...
-                  </span>
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--status-info-text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <RotateCw size={14} className="spin" />
+                    <span>Verifying image contents...</span>
+                  </div>
                 )}
                 {aiState.status === 'VERIFIED' && (
-                  <span style={{
-                    position: 'absolute',
-                    top: '10px',
-                    left: '10px',
-                    background: aiState.is_bulk ? '#10b981' : '#f59e0b',
-                    color: aiState.is_bulk ? '#022c22' : '#451a03',
-                    padding: '5px 10px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    zIndex: 100,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
-                  }}>
-                    <i className={aiState.is_bulk ? "fa-solid fa-circle-check" : "fa-solid fa-triangle-exclamation"}></i>
-                    {aiState.is_bulk 
-                      ? `🍲 Bulk Surplus (${aiState.estimated_servings_range || `${aiState.confidence}%`})`
-                      : `⚠️ Low Quantity (${aiState.estimated_servings_range || 'Small Portion'})`
-                    }
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--status-available-text)', fontWeight: 600, fontSize: '0.8125rem' }}>
+                      <CheckCircle2 size={16} strokeWidth={1.5} />
+                      <span>{aiState.reason || 'Cooked surplus food confirmed'} ({aiState.confidence}% confidence)</span>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      Volume classification: <strong>{aiState.is_bulk ? 'Bulk surplus' : 'Standard portion'}</strong>
+                      {aiState.estimated_servings_range && ` (${aiState.estimated_servings_range})`}
+                    </div>
+                  </div>
                 )}
                 {aiState.status === 'REJECTED' && (
-                  <span style={{
-                    position: 'absolute',
-                    top: '10px',
-                    left: '10px',
-                    background: aiState.retryable ? '#f59e0b' : '#ef4444',
-                    color: '#ffffff',
-                    padding: '5px 10px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    zIndex: 100,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
-                  }}>
-                    <i className={aiState.retryable ? "fa-solid fa-arrows-rotate" : "fa-solid fa-circle-xmark"}></i>
-                    {aiState.retryable ? 'AI Busy (Click Retry)' : 'Not Food Detected'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--status-critical-text)', fontSize: '0.8125rem' }}>
+                    <AlertCircle size={16} strokeWidth={1.5} />
+                    <span>{aiState.reason || 'Image could not be verified as surplus food.'}</span>
+                  </div>
                 )}
+              </div>
 
-                {/* Top-Right Retake Button */}
-                <button 
-                  type="button" 
-                  className="remove-snap-btn" 
-                  onClick={retakePhoto} 
-                  style={{
-                    position: 'absolute',
-                    top: '10px',
-                    right: '10px',
-                    background: 'rgba(15, 23, 42, 0.85)',
-                    color: '#fff',
-                    border: '1px solid #475569',
-                    backdropFilter: 'blur(6px)',
-                    padding: '5px 12px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    zIndex: 100,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.5)'
-                  }}
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!imagePreview}
+                  onClick={() => setCurrentStep(2)}
                 >
-                  <i className="fa-solid fa-camera-rotate"></i> Retake
+                  <span>Continue to food details</span>
+                  <ArrowRight size={15} strokeWidth={1.5} />
                 </button>
-
-                {/* Hardware Security / Geotag Stamp Overlay at Bottom */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: '10px',
-                  left: '10px',
-                  right: '10px',
-                  background: 'rgba(15, 23, 42, 0.94)',
-                  backdropFilter: 'blur(8px)',
-                  WebkitBackdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderLeft: isLiveCapture ? '4px solid #10b981' : '4px solid #f59e0b',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  color: '#ffffff',
-                  fontFamily: 'monospace',
-                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.7)',
-                  zIndex: 90,
-                  pointerEvents: 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontWeight: 800, color: isLiveCapture ? '#34d399' : '#f59e0b', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                      <i className={isLiveCapture ? "fa-solid fa-shield-halved" : "fa-solid fa-folder-open"}></i>
-                      {isLiveCapture ? 'FoodLoop Verified Live Proof' : '📁 Gallery Upload'}
-                    </span>
-                    <span style={{ color: '#cbd5e1', fontSize: '10px', fontWeight: 600 }}>
-                      📅 {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </span>
-                  </div>
-                  <div style={{
-                    color: '#38bdf8',
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'rgba(56, 189, 248, 0.08)',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    width: 'fit-content'
-                  }}>
-                    <i className="fa-solid fa-location-crosshairs" style={{ color: '#ef4444', fontSize: '12px' }}></i>
-                    <span>GPS: {userLiveCoords ? `${userLiveCoords.lat.toFixed(4)}°N, ${userLiveCoords.lon.toFixed(4)}°E` : 'Location Unavailable'}</span>
-                  </div>
-                </div>
               </div>
-            )}
-
-            {/* AI Verification Detailed Alerts — Rendered below the photo to prevent overlap */}
-            {imagePreview && aiState.status === 'REJECTED' && (
-              <div style={{
-                marginTop: '10px',
-                background: aiState.retryable ? 'rgba(245, 158, 11, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                border: aiState.retryable ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid rgba(239, 68, 68, 0.35)',
-                borderRadius: '8px',
-                padding: '10px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '12px',
-                color: aiState.retryable ? '#fde68a' : '#fca5a5'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                  <i className={aiState.retryable ? "fa-solid fa-arrows-rotate" : "fa-solid fa-triangle-exclamation"} style={{ color: aiState.retryable ? '#f59e0b' : '#ef4444', fontSize: '16px', marginTop: '2px' }}></i>
-                  <div style={{ fontSize: '12px', lineHeight: 1.4 }}>
-                    <strong style={{ color: aiState.retryable ? '#fbbf24' : '#f87171' }}>
-                      {aiState.retryable ? 'AI Service Busy: ' : 'Verification Rejected: '}
-                    </strong>
-                    <span>{aiState.reason || 'Image does not clearly show edible surplus food.'}</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={() => triggerAIVerification(imagePreview)}
-                    style={{
-                      background: '#334155',
-                      color: '#fff',
-                      border: '1px solid #475569',
-                      borderRadius: '6px',
-                      padding: '6px 10px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    <i className="fa-solid fa-arrows-rotate"></i> Retry Check
-                  </button>
-                  <button
-                    type="button"
-                    onClick={retakePhoto}
-                    style={{
-                      background: '#ef4444',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '6px 12px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    <i className="fa-solid fa-rotate-left"></i> Retake
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {imagePreview && aiState.status === 'VERIFIED' && aiState.is_bulk && (
-              <div style={{
-                marginTop: '8px',
-                background: 'rgba(16, 185, 129, 0.12)',
-                border: '1px solid rgba(16, 185, 129, 0.35)',
-                borderRadius: '8px',
-                padding: '10px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                fontSize: '12px',
-                color: '#34d399'
-              }}>
-                <i className="fa-solid fa-circle-check" style={{ color: '#10b981', fontSize: '16px', flexShrink: 0 }}></i>
-                <div>
-                  <strong>AI Bulk Surplus Verified ({aiState.confidence}%): </strong>
-                  <span>{aiState.reason || `Commercial/catering bulk quantity confirmed (${aiState.estimated_servings_range || '10+ servings'}).`}</span>
-                </div>
-              </div>
-            )}
-
-            {imagePreview && aiState.status === 'VERIFIED' && !aiState.is_bulk && (
-              <div style={{
-                marginTop: '8px',
-                background: 'rgba(245, 158, 11, 0.12)',
-                border: '1px solid rgba(245, 158, 11, 0.45)',
-                borderRadius: '8px',
-                padding: '10px 14px',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '10px',
-                fontSize: '12px',
-                color: '#fcd34d'
-              }}>
-                <i className="fa-solid fa-triangle-exclamation" style={{ color: '#f59e0b', fontSize: '16px', marginTop: '2px', flexShrink: 0 }}></i>
-                <div style={{ lineHeight: 1.45 }}>
-                  <strong style={{ color: '#fbbf24' }}>
-                    Low Quantity / Small Portion Detected ({aiState.estimated_servings_range || '1-4 servings'}):
-                  </strong>
-                  <div style={{ color: '#fef3c7', marginTop: '3px' }}>
-                    {aiState.reason} FoodLoop is designed for bulk surplus rescue (10+ servings). If this is part of a larger batch, please upload a photo showing the bulk containers/vessels.
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Food Item Title */}
-        <div className="form-group">
-          <label>Food item</label>
-          <input 
-            name="food" 
-            id="input-food-title" 
-            type="text" 
-            value={title} 
-            onChange={(e) => setTitle(e.target.value)} 
-            placeholder="e.g. 40 vegetable biryanis" 
-            required 
-          />
-        </div>
-
-        {/* Category & Quantity Row */}
-        <div className="form-row">
-          <div>
-            <label>Category</label>
-            <select 
-              name="category" 
-              id="input-food-category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              <option>Vegetarian</option>
-              <option>Non-vegetarian</option>
-              <option>Vegan</option>
-            </select>
-          </div>
-          <div>
-            <label>Quantity</label>
-            <input 
-              name="quantity" 
-              id="input-food-qty" 
-              type="text" 
-              value={quantity} 
-              onChange={(e) => setQuantity(e.target.value)} 
-              placeholder="e.g. 40 servings" 
-              required 
-            />
-          </div>
-        </div>
-
-        {/* Window & Route */}
-        <div className="form-group">
-          <label>Safe consumption window & Destination Route</label>
-          <select 
-            name="window" 
-            id="input-food-window"
-            value={windowHours}
-            onChange={(e) => setWindowHours(e.target.value)}
-          >
-            <option value="1">Within 1 hour (🚨 Direct Animal Shelter & Biogas Loop)</option>
-            <option value="2">Within 2 hours (Fast-track Rescue)</option>
-            <option value="3">Within 3 hours (Standard NGO Window)</option>
-            <option value="4">Within 4 hours (Extended Event Food)</option>
-            <option value="6">By end of day (6h)</option>
-          </select>
-        </div>
-
-        {/* Address & GPS */}
-        <div className="form-group" id="address-container" ref={dropdownRef} style={{ position: 'relative' }}>
-          <div className="label-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <label htmlFor="address">Pickup address <small>(Delhi-NCR / Dehradun)</small></label>
-            <button 
-              type="button" 
-              id="gps-locate-btn" 
-              onClick={handleGPSAutoLocate}
-              disabled={gpsLoading}
-            >
-              {gpsLoading ? '⏳ Detecting GPS...' : '🎯 Auto-Locate GPS'}
-            </button>
-          </div>
-          <div className="address-input-wrapper">
-            <input 
-              name="address" 
-              id="address" 
-              type="text" 
-              value={address} 
-              onChange={handleAddressChange}
-              onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
-              placeholder="Start typing area, colony, or landmark..." 
-              required 
-              autoComplete="off"
-            />
-            {isSearching && (
-              <span className="address-spinner">
-                <i className="fa-solid fa-spinner fa-spin"></i>
-              </span>
-            )}
-          </div>
-          {customCoords && (
-            <div style={{ marginTop: '5px', fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <i className="fa-solid fa-circle-check"></i>
-              <span>Pinpoint locked ({customCoords.lat.toFixed(4)}°N, {customCoords.lon.toFixed(4)}°E)</span>
             </div>
           )}
-          {showDropdown && suggestions.length > 0 && (
-            <ul className="address-suggestions-dropdown">
-              {suggestions.map((item, idx) => (
-                <li 
-                  key={item.place_id || idx} 
-                  className="address-suggestion-item"
-                  onClick={() => handleSelectSuggestion(item)}
+
+          {/* STEP 2: FOOD DETAILS */}
+          {currentStep === 2 && (
+            <div>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', marginBottom: '4px' }}>
+                Step 2: Food details
+              </h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Specify consignment details, volume, safe window, and pickup coordinates.
+              </p>
+
+              {/* Fast-Track Presets */}
+              <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: 'var(--canvas)', borderRadius: 'var(--radius-xs)' }}>
+                <span className="label-caps" style={{ display: 'block', marginBottom: '8px' }}>
+                  Fast-Track Presets
+                </span>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => applyPreset('Buffet Surplus: 50 Rice, Dal & Sabzi', 'Vegetarian', '50 servings', 3)}
+                  >
+                    Buffet (50 pax)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => applyPreset('Bakery Surplus: Fresh Bread & Buns', 'Vegetarian', '30 packets', 4)}
+                  >
+                    Bakery box (30 pcs)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => applyPreset('Event Meal Boxes (Paneer & Roti)', 'Vegetarian', '40 boxes', 2)}
+                  >
+                    Packed meals (40 boxes)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => applyPreset('Short Window Surplus: 25 Meals', 'Vegetarian', '25 servings', 1)}
+                  >
+                    Short window (&lt;1h Animal Loop)
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="food-title">Food Title / Consignment Description</label>
+                <input
+                  id="food-title"
+                  type="text"
+                  placeholder="e.g., Fresh Dal Makhani & Phulkas, Veg Pulao"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="food-category">Category</label>
+                  <select
+                    id="food-category"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
+                    <option value="Vegetarian">Vegetarian</option>
+                    <option value="Non-Vegetarian">Non-Vegetarian</option>
+                    <option value="Bakery">Bakery / Packaged</option>
+                    <option value="Raw Ration">Raw Ration / Staples</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="food-quantity">Estimated Volume (Min 10 meals)</label>
+                  <input
+                    id="food-quantity"
+                    type="text"
+                    placeholder="e.g., 65 meals, 40 boxes"
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="consumption-window">Safe Consumption Window</label>
+                <select
+                  id="consumption-window"
+                  value={windowHours}
+                  onChange={(e) => setWindowHours(e.target.value)}
                 >
-                  <i className="fa-solid fa-location-dot" style={{ marginTop: '2px', color: '#10b981', flexShrink: 0 }}></i>
-                  <span>{item.display_name}</span>
-                </li>
-              ))}
-            </ul>
+                  <option value="1">1 hour (Diverted directly to animal loop)</option>
+                  <option value="2">2 hours (Urgent human pickup)</option>
+                  <option value="3">3 hours (Standard cooked food window)</option>
+                  <option value="4">4 hours (Freshly prepared / insulated)</option>
+                  <option value="6">6 hours (Cold stored / sealed)</option>
+                </select>
+                <div className="form-helper">
+                  {parseInt(windowHours, 10) <= 1 
+                    ? 'Consignments with 1-hour window route directly to animal shelters & gaushalas.' 
+                    : 'Recommended consumption window for hot cooked food is 3 to 4 hours.'}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ position: 'relative' }} ref={dropdownRef}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" htmlFor="pickup-address" style={{ margin: 0 }}>Pickup Address / Location</label>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleGPSAutoLocate}
+                    disabled={gpsLoading}
+                    style={{ padding: '3px 8px', fontSize: '0.75rem' }}
+                  >
+                    <MapPin size={12} strokeWidth={1.5} />
+                    <span>{gpsLoading ? 'Locating...' : 'Auto-locate GPS'}</span>
+                  </button>
+                </div>
+                <input
+                  id="pickup-address"
+                  type="text"
+                  placeholder="Start typing area, hotel, banquet or sector..."
+                  value={address}
+                  onChange={handleAddressChange}
+                  required
+                />
+                {showDropdown && suggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-xs)',
+                    boxShadow: 'var(--shadow-dialog)',
+                    zIndex: 200,
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                  }}>
+                    {suggestions.map((s, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => handleSelectSuggestion(s)}
+                        style={{
+                          padding: '8px 12px',
+                          borderBottom: '1px solid var(--border)',
+                          fontSize: '0.8125rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {s.display_name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="donor-phone">Contact Mobile Number</label>
+                <input
+                  id="donor-phone"
+                  type="tel"
+                  placeholder="10-digit mobile number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  maxLength={10}
+                  required
+                />
+                <div className="form-helper">
+                  Protected: Your mobile number remains hidden until claimed by a verified NGO partner.
+                </div>
+              </div>
+
+              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setCurrentStep(1)}
+                >
+                  <ArrowLeft size={15} strokeWidth={1.5} />
+                  <span>Back to proof</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    if (!title.trim() || !quantity.trim() || !address.trim() || !phone.trim()) {
+                      alert('Please fill all required food details before continuing.');
+                      return;
+                    }
+                    setCurrentStep(3);
+                  }}
+                >
+                  <span>Continue to review</span>
+                  <ArrowRight size={15} strokeWidth={1.5} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: REVIEW AND SUBMIT */}
+          {currentStep === 3 && (
+            <div>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', marginBottom: '4px' }}>
+                Step 3: Review and submit
+              </h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Review consignment summary before final OTP verification.
+              </p>
+
+              <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-xs)', padding: '16px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '14px' }}>
+                  {imagePreview && (
+                    <img
+                      src={imagePreview}
+                      alt="Proof"
+                      style={{ width: '90px', height: '90px', objectFit: 'cover', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)' }}
+                    />
+                  )}
+                  <div>
+                    <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', marginBottom: '2px' }}>{title || 'Surplus Food'}</h4>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                      {quantity} · {category} · {windowHours}h window
+                    </p>
+                    <span className={`status-chip ${parseInt(windowHours, 10) <= 1 ? 'expiring' : 'available'}`}>
+                      {parseInt(windowHours, 10) <= 1 ? 'Direct to Animal Loop' : 'Human Community Rescue'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="detail-meta-list" style={{ margin: 0, padding: 0, border: 'none' }}>
+                  <div className="detail-meta-item">
+                    <span>Pickup Address</span>
+                    <span style={{ maxWidth: '280px', textAlign: 'right' }}>{address}</span>
+                  </div>
+                  <div className="detail-meta-item">
+                    <span>Donor Name</span>
+                    <span>{currentUser?.name || currentUser?.organization || 'Registered Donor'}</span>
+                  </div>
+                  <div className="detail-meta-item">
+                    <span>Contact Phone</span>
+                    <span>+91 {phone} (Protected until claim)</span>
+                  </div>
+                  <div className="detail-meta-item">
+                    <span>AI Food Verification</span>
+                    <span>{aiState.status === 'VERIFIED' ? `Passed (${aiState.confidence}%)` : 'Bypassed / Pending'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: 'var(--canvas)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-xs)',
+                padding: '12px 16px',
+                marginBottom: '20px',
+                fontSize: '0.75rem',
+                color: 'var(--text-secondary)'
+              }}>
+                By proceeding, you certify that the food has been safely stored, is suitable for consumption, and accept the FoodLoop surplus rescue terms.
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setCurrentStep(2)}
+                >
+                  <ArrowLeft size={15} strokeWidth={1.5} />
+                  <span>Back to details</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSubmit}
+                >
+                  <ShieldCheck size={16} strokeWidth={1.5} />
+                  <span>Review terms &amp; publish listing</span>
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Phone */}
-        <div className="form-group">
-          <label>Contact phone (10-Digit Mobile Only)</label>
-          <input 
-            name="phone" 
-            id="donor-phone" 
-            type="tel" 
-            value={phone} 
-            onChange={(e) => setPhone(e.target.value)} 
-            placeholder="e.g. 9876543210" 
-            required 
-          />
-        </div>
+        {/* Right Column: Consignment Summary & Listing Protocol */}
+        <aside>
+          {/* Summary Card */}
+          <div className="surface-card" style={{ padding: '20px', marginBottom: '20px' }}>
+            <span className="label-caps" style={{ display: 'block', marginBottom: '8px' }}>
+              Consignment Summary
+            </span>
+            <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+              {title || 'New Surplus Entry'}
+            </div>
+            <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '14px' }}>
+              {quantity ? `${quantity} · ` : ''}{category}
+            </div>
 
-        {/* Submit */}
-        <button 
-          className="button button-primary submit-button" 
-          type="submit" 
-          id="publish-donation-btn"
-        >
-          Verify & Publish Donation <i className="fa-solid fa-arrow-right"></i>
-        </button>
-        <p className="form-footnote">
-          <i className="fa-solid fa-shield-heart"></i> FoodLoop Network is verified under India NGO Darpan & Gaushala Rescue Protocol.
-        </p>
-      </form>
+            <div className="detail-meta-list" style={{ margin: '12px 0', padding: '10px 0' }}>
+              <div className="detail-meta-item">
+                <span>Safe window</span>
+                <span>{windowHours} hours</span>
+              </div>
+              <div className="detail-meta-item">
+                <span>Status target</span>
+                <span>{parseInt(windowHours, 10) <= 1 ? 'Animal Loop' : 'Human Feed'}</span>
+              </div>
+              <div className="detail-meta-item">
+                <span>AI Photo Check</span>
+                <span>{aiState.status === 'VERIFIED' ? 'Verified' : 'Pending'}</span>
+              </div>
+            </div>
 
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+              Location: {address ? (address.split(',')[0] || address) : 'Not specified yet'}
+            </div>
+          </div>
+
+          {/* Listing Rules & Protocol Card */}
+          <div className="surface-card" style={{ padding: '20px' }}>
+            <span className="label-caps" style={{ display: 'block', marginBottom: '8px' }}>
+              Listing Rules &amp; Protocol
+            </span>
+            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+              <li style={{ display: 'flex', gap: '8px' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>1.</span>
+                <span><strong>Minimum 10 meals:</strong> FoodLoop is for bulk institutional &amp; event surplus.</span>
+              </li>
+              <li style={{ display: 'flex', gap: '8px' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>2.</span>
+                <span><strong>Protected privacy:</strong> Donor phone &amp; exact address unlock only after claim by verified NGO.</span>
+              </li>
+              <li style={{ display: 'flex', gap: '8px' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>3.</span>
+                <span><strong>Secondary loop:</strong> Unclaimed surplus &le; 1 hour safely diverts to gaushalas.</span>
+              </li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+
+      {/* Terms and Conditions Acceptance Modal */}
       <TermsAndConditionsModal
         isOpen={isTermsModalOpen}
         onClose={handleCloseTerms}

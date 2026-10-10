@@ -1,16 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { 
+  X, 
+  CheckCircle2, 
+  AlertCircle, 
+  QrCode, 
+  Camera, 
+  ShieldAlert, 
+  FileText, 
+  Copy, 
+  Share2, 
+  Heart, 
+  Lock, 
+  Unlock 
+} from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { VERIFIED_NGO_REGISTRY, calculateDistance } from '../data/directory';
 import { generate80GCertificate } from '../utils/certificate';
-import confetti from 'canvas-confetti';
 import { TERMS_CONTENT_V1, TERMS_VERSION } from '../data/termsContent';
 import NgoWebCheck from './tinyfish/NgoWebCheck';
 
 // ─── 1. Auth Modal ─────────────────────────────────────────────────────────────
 export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
   const [mode, setMode] = useState('LOGIN'); // LOGIN or REGISTER
-  const [role, setRole] = useState('NGO'); // NGO or DONOR
+  const [role, setRole] = useState('NGO'); // NGO, DONOR, ANIMAL_SHELTER
   const [name, setName] = useState('');
   const [org, setOrg] = useState('');
   const [darpanId, setDarpanId] = useState('');
@@ -29,10 +43,10 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
       return;
     }
 
-    if (mode === 'REGISTER' && role === 'NGO') {
+    if (mode === 'REGISTER' && (role === 'NGO' || role === 'ANIMAL_SHELTER')) {
       const cleanDarpan = darpanId.trim().toUpperCase();
       if (!/^[A-Z]{2}\/\d{4}\/\d{5,8}$/i.test(cleanDarpan)) {
-        alert('Invalid NITI Aayog Darpan ID format. E.g., DL/2018/0192831 or UK/2015/0092341');
+        alert('Invalid Darpan ID format. E.g., DL/2018/0192831 or UK/2015/0092341.\n(Darpan ID format is checked. The registry is not queried.)');
         return;
       }
     }
@@ -43,7 +57,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
           name: name.trim(),
           organization: org.trim(),
           role,
-          darpan_id: role === 'NGO' ? darpanId.trim() : '',
+          darpan_id: (role === 'NGO' || role === 'ANIMAL_SHELTER') ? darpanId.trim() : '',
           phone: cleanPhone,
           password
         };
@@ -62,7 +76,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
         localStorage.setItem('foodloop_auth_user', JSON.stringify(userFields));
         onLoginSuccess(userFields);
         onClose();
-        if (showToast) showToast(`✅ Logged in successfully as ${userFields.name || name || 'User'}`);
+        if (showToast) showToast(`Logged in successfully as ${userFields.name || name || 'User'}`);
       } else {
         alert(data.error || 'Authentication failed. Please verify credentials.');
       }
@@ -78,124 +92,132 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
         localStorage.setItem('foodloop_auth_user', JSON.stringify(mockUser));
         onLoginSuccess(mockUser);
         onClose();
-        if (showToast) showToast(`✅ Logged in as ${mockUser.name} (Offline Demo Mode)`);
+        if (showToast) showToast(`Logged in as ${mockUser.name} (Offline Demo Mode)`);
       } else {
-        alert('Network error connecting to authentication service. Please check connection and try again.');
+        alert('Network error connecting to authentication service.');
       }
     }
   };
 
-
   return (
-    <div id="auth-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div className="auth-modal-card">
-        <div className="modal-top-row">
-          <h3 id="auth-modal-title">{mode === 'LOGIN' ? 'Sign In to Portal' : 'Register New Account'}</h3>
-          <button type="button" className="close-x-btn" onClick={onClose}>✕</button>
+    <div id="auth-modal" className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal-dialog-panel modal-narrow" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <h3>{mode === 'LOGIN' ? 'Sign In to Portal' : 'Register New Account'}</h3>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
 
-        {mode === 'REGISTER' && (
-          <div className="role-switcher-tabs">
-            <button 
-              type="button" 
-              className={role === 'NGO' ? 'active' : ''} 
-              onClick={() => setRole('NGO')}
-              style={{ background: role === 'NGO' ? '#10b981' : '#1e293b', color: role === 'NGO' ? '#000' : '#fff' }}
-            >
-              🏛️ NGO / Shelter
-            </button>
-            <button 
-              type="button" 
-              className={role === 'DONOR' ? 'active' : ''} 
-              onClick={() => setRole('DONOR')}
-              style={{ background: role === 'DONOR' ? '#10b981' : '#1e293b', color: role === 'DONOR' ? '#000' : '#fff' }}
-            >
-              🍲 Donor / Banquet
-            </button>
-          </div>
-        )}
-
-        <form id="auth-form" onSubmit={handleSubmit}>
+        <div className="modal-dialog-body">
           {mode === 'REGISTER' && (
-            <>
-              <div className="form-group">
-                <label>Admin Name</label>
-                <input 
-                  type="text" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
-                  placeholder="e.g. Ramesh Kumar" 
-                  required 
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Organization / Shelter Name</label>
-                <input 
-                  type="text" 
-                  value={org} 
-                  onChange={(e) => setOrg(e.target.value)} 
-                  placeholder="e.g. Robin Hood Army / Delhi Shelter Hub" 
-                  required 
-                />
-                {role === 'NGO' && (
-                  <NgoWebCheck orgName={org} darpanId={darpanId} />
-                )}
-              </div>
-
-              {role === 'NGO' && (
-                <div className="darpan-box">
-                  <label>🏛️ NITI Aayog Darpan ID (Mandatory for NGOs)</label>
-                  <input 
-                    type="text" 
-                    value={darpanId} 
-                    onChange={(e) => setDarpanId(e.target.value)} 
-                    placeholder="e.g. DL/2018/0192831" 
-                    required 
-                  />
-                  <p>Verified against Govt NGO Darpan registry.</p>
-                </div>
-              )}
-            </>
+            <div className="role-segmented-buttons">
+              <button 
+                type="button" 
+                className={`role-segment-btn ${role === 'DONOR' ? 'active' : ''}`}
+                onClick={() => setRole('DONOR')}
+              >
+                Food donor
+              </button>
+              <button 
+                type="button" 
+                className={`role-segment-btn ${role === 'NGO' ? 'active' : ''}`}
+                onClick={() => setRole('NGO')}
+              >
+                NGO / Shelter
+              </button>
+              <button 
+                type="button" 
+                className={`role-segment-btn ${role === 'ANIMAL_SHELTER' ? 'active' : ''}`}
+                onClick={() => setRole('ANIMAL_SHELTER')}
+              >
+                Animal shelter
+              </button>
+            </div>
           )}
 
-          <div className="form-group">
-            <label>Mobile Phone Number</label>
-            <input 
-              type="tel" 
-              value={phone} 
-              onChange={(e) => setPhone(e.target.value)} 
-              placeholder="10-digit number" 
-              required 
-            />
-          </div>
+          <form id="auth-form" onSubmit={handleSubmit}>
+            {mode === 'REGISTER' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Full Name</label>
+                  <input 
+                    type="text" 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)} 
+                    placeholder="e.g. Ramesh Kumar" 
+                    required 
+                  />
+                </div>
 
-          <div className="form-group">
-            <label>Password</label>
-            <input 
-              type="password" 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
-              placeholder="Minimum 6 characters" 
-              required 
-            />
-          </div>
+                <div className="form-group">
+                  <label className="form-label">Organization Name</label>
+                  <input 
+                    type="text" 
+                    value={org} 
+                    onChange={(e) => setOrg(e.target.value)} 
+                    placeholder="e.g. Robin Hood Army / Grand Banquet" 
+                    required 
+                  />
+                </div>
 
-          <button type="submit" id="auth-submit-btn" className="auth-submit-action">
-            {mode === 'LOGIN' ? 'Sign In to Account' : 'Verify & Create Account'}
-          </button>
-          
-          <p 
-            className="auth-toggle-text" 
-            onClick={() => setMode(mode === 'LOGIN' ? 'REGISTER' : 'LOGIN')}
-          >
-            {mode === 'LOGIN' ? (
-              <>New to FoodLoop? <span>Click here to Register</span></>
-            ) : (
-              <>Already registered? <span>Click here to Sign In</span></>
+                {(role === 'NGO' || role === 'ANIMAL_SHELTER') && (
+                  <div className="form-group">
+                    <label className="form-label">Darpan ID (Format checked)</label>
+                    <input 
+                      type="text" 
+                      value={darpanId} 
+                      onChange={(e) => setDarpanId(e.target.value.toUpperCase())} 
+                      placeholder="e.g. DL/2018/0192831" 
+                      required 
+                    />
+                    <div className="form-helper">
+                      Darpan ID format is checked. The registry is not queried.
+                    </div>
+                    <NgoWebCheck orgName={org} darpanId={darpanId} />
+                  </div>
+                )}
+              </>
             )}
-          </p>
-        </form>
+
+            <div className="form-group">
+              <label className="form-label">Mobile Phone Number</label>
+              <input 
+                type="tel" 
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)} 
+                placeholder="10-digit number" 
+                required 
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input 
+                type="password" 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                placeholder="Minimum 6 characters" 
+                required 
+              />
+            </div>
+
+            <button type="submit" id="auth-submit-btn" className="btn btn-primary" style={{ width: '100%', marginTop: '8px' }}>
+              {mode === 'LOGIN' ? 'Sign In to Account' : 'Create Account'}
+            </button>
+            
+            <p 
+              style={{ fontSize: '0.8125rem', textAlign: 'center', marginTop: '16px', color: 'var(--text-secondary)', cursor: 'pointer' }}
+              onClick={() => setMode(mode === 'LOGIN' ? 'REGISTER' : 'LOGIN')}
+            >
+              {mode === 'LOGIN' ? (
+                <>New to FoodLoop? <span style={{ color: 'var(--graphite)', fontWeight: 600, textDecoration: 'underline' }}>Register an account</span></>
+              ) : (
+                <>Already registered? <span style={{ color: 'var(--graphite)', fontWeight: 600, textDecoration: 'underline' }}>Sign In</span></>
+              )}
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -217,29 +239,54 @@ export function OTPModal({ isOpen, onClose, generatedOTP, onConfirm }) {
   };
 
   return (
-    <div id="otp-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div className="otp-modal-card">
-        <div className="otp-icon">📲</div>
-        <h3>Phone Verification</h3>
-        <p>Enter the 4-digit verification code below to publish your listing.</p>
-        <div id="otp-banner">
-          Demo Verification Code: <strong id="generated-otp-display">{generatedOTP}</strong>
+    <div id="otp-modal" className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal-dialog-panel modal-narrow" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <h3>Phone Verification</h3>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
-        <div style={{ fontSize: '11px', color: '#94a3b8', margin: '6px 0 12px', textAlign: 'center' }}>
-          (Sandbox Demo Mode — in live production, code is dispatched via transactional SMS gateway)
-        </div>
-        <input 
-          type="text" 
-          id="otp-input-field" 
-          maxLength="4" 
-          value={enteredOTP} 
-          onChange={(e) => setEnteredOTP(e.target.value)} 
-          placeholder="••••" 
-          autoFocus 
-        />
-        <div className="modal-btn-row">
-          <button id="otp-cancel-btn" type="button" onClick={onClose}>Cancel</button>
-          <button id="otp-verify-btn" type="button" onClick={handleVerify}>Confirm OTP</button>
+
+        <div className="modal-dialog-body" style={{ textAlign: 'center' }}>
+          <p style={{ marginBottom: '16px' }}>
+            Enter the 4-digit verification code below to publish your surplus listing.
+          </p>
+
+          <div style={{
+            backgroundColor: 'var(--status-info-bg)',
+            border: '1px solid var(--status-info-border)',
+            padding: '12px',
+            borderRadius: 'var(--radius-xs)',
+            marginBottom: '16px',
+            fontSize: '0.875rem'
+          }}>
+            Demo Verification Code: <strong id="generated-otp-display" style={{ fontVariantNumeric: 'tabular-nums', fontSize: '1.1rem' }}>{generatedOTP}</strong>
+          </div>
+
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
+            Demo Mode: Code is shown on screen for testing.
+          </div>
+
+          <input 
+            type="text" 
+            id="otp-input-field" 
+            maxLength="4" 
+            value={enteredOTP} 
+            onChange={(e) => setEnteredOTP(e.target.value)} 
+            placeholder="••••" 
+            autoFocus 
+            style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5em', height: '48px', width: '200px', margin: '0 auto 20px auto' }}
+          />
+
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+            <button id="otp-cancel-btn" type="button" className="btn btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button id="otp-verify-btn" type="button" className="btn btn-primary" onClick={handleVerify}>
+              Confirm OTP
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -251,23 +298,28 @@ export function QRHandoverModal({ isOpen, onClose, listing }) {
   if (!isOpen || !listing) return null;
 
   return (
-    <div id="qr-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div className="qr-modal-card">
-        <h3>🤝 Handover Verification</h3>
-        <p>Volunteer must scan this QR code on arrival to confirm safe collection.</p>
-        <div 
-          id="qrcode-container" 
-          style={{ 
-            background: '#fff', 
+    <div id="qr-modal" className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal-dialog-panel modal-narrow" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <h3>Pickup Handover</h3>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
+        </div>
+
+        <div className="modal-dialog-body" style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+            Show this single-use code to the collecting NGO volunteer on arrival.
+          </p>
+
+          <div style={{ 
+            background: '#FFFFFF', 
             padding: '16px', 
-            borderRadius: '12px', 
+            borderRadius: 'var(--radius-xs)', 
+            border: '1px solid var(--border)',
             display: 'inline-block', 
-            margin: '16px 0',
-            textAlign: 'center'
-          }}
-        >
-          {/* Real Scannable QR Code */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+            margin: '0 auto 16px auto'
+          }}>
             <QRCodeSVG 
               value={JSON.stringify({
                 id: listing.id,
@@ -277,19 +329,21 @@ export function QRHandoverModal({ isOpen, onClose, listing }) {
               size={180}
               level="M"
             />
-            <div style={{ fontFamily: 'monospace', color: '#000', fontSize: '11px', fontWeight: 800 }}>
-              <div>ID: {listing.id}</div>
-              <div>DONOR: {listing.donor_name}</div>
-              <div>CODE: {listing.verification_code || 'HW-AUTHENTICATED'}</div>
-            </div>
           </div>
+
+          <div style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+            <div>ID: {listing.id}</div>
+            <div>CODE: {listing.verification_code || 'HW-AUTHENTICATED'}</div>
+          </div>
+
+          <div style={{ fontSize: '0.8125rem', color: 'var(--status-info-text)', marginBottom: '20px' }}>
+            Status: Awaiting volunteer scan
+          </div>
+
+          <button id="qr-close-btn" className="btn btn-secondary" onClick={onClose} style={{ width: '100%' }}>
+            Close
+          </button>
         </div>
-        <p id="qr-handshake-status" style={{ color: '#38bdf8', fontSize: '13px' }}>
-          Status: Awaiting Volunteer Handshake...
-        </p>
-        <button id="qr-close-btn" onClick={onClose} style={{ marginTop: '12px' }}>
-          Close
-        </button>
       </div>
     </div>
   );
@@ -328,7 +382,7 @@ export function QRScannerModal({ isOpen, onClose, onScanSuccess, listing }) {
             aspectRatio: 1.0,
             showTorchButtonIfSupported: true
           },
-          /* verbose= */ false
+          false
         );
         scannerRef.current = scannerInstance;
 
@@ -370,20 +424,18 @@ export function QRScannerModal({ isOpen, onClose, onScanSuccess, listing }) {
 
           if (isMatch) {
             handledRef.current = true;
-            setScanMessage(`✅ Handshake Verified! Pickup Recorded. ${matchedInfo ? `(${matchedInfo})` : ''}`);
+            setScanMessage(`Handshake Verified. Pickup Recorded. ${matchedInfo ? `(${matchedInfo})` : ''}`);
             setErrorMessage('');
             setTimeout(() => {
               if (onScanSuccess) onScanSuccess(listing);
               onClose();
             }, 1200);
           } else {
-            setErrorMessage(`⚠️ QR Mismatch: Scanned code does not match Listing #${listing?.id || ''}.`);
+            setErrorMessage(`QR Mismatch: Scanned code does not match Listing #${listing?.id || ''}.`);
           }
         };
 
-        const onScanErrorLocal = () => {
-          // ignore routine frame-level scan errors
-        };
+        const onScanErrorLocal = () => {};
 
         scannerInstance.render(onScanSuccessLocal, onScanErrorLocal);
       } catch (e) {
@@ -408,7 +460,7 @@ export function QRScannerModal({ isOpen, onClose, onScanSuccess, listing }) {
   const handleSimulate = () => {
     if (handledRef.current) return;
     handledRef.current = true;
-    setScanMessage('✅ Handshake Verified! Pickup Recorded (Simulated).');
+    setScanMessage('Handshake Verified. Pickup Recorded (Demo Mode).');
     setErrorMessage('');
     setTimeout(() => {
       if (onScanSuccess) onScanSuccess(listing);
@@ -417,88 +469,73 @@ export function QRScannerModal({ isOpen, onClose, onScanSuccess, listing }) {
   };
 
   return (
-    <div id="qr-scanner-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div className="qr-modal-card" style={{ maxWidth: '440px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <h3 style={{ fontSize: '16px', color: '#fff', margin: 0 }}>📷 Scan Donor Pickup QR</h3>
-          <button type="button" className="close-x-btn" onClick={onClose}>✕</button>
+    <div id="qr-scanner-modal" className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal-dialog-panel modal-narrow" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <h3>Scan Handover Code</h3>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
 
-        {listing && (
-          <div style={{ background: '#1e293b', padding: '8px 12px', borderRadius: '8px', marginBottom: '12px', fontSize: '12px', color: '#94a3b8' }}>
-            <span style={{ color: '#38bdf8', fontWeight: 700 }}>Target: </span>
-            {listing.title} ({listing.donor_name}) · Code: <code style={{ color: '#f59e0b', fontWeight: 700 }}>{listing.verification_code || 'HW-AUTHENTICATED'}</code>
-          </div>
-        )}
+        <div className="modal-dialog-body">
+          {listing && (
+            <div style={{ backgroundColor: 'var(--canvas)', padding: '10px 14px', borderRadius: 'var(--radius-xs)', marginBottom: '12px', fontSize: '0.8125rem' }}>
+              <span style={{ fontWeight: 600 }}>Target: </span>
+              {listing.title} ({listing.donor_name}) · Code: <code>{listing.verification_code || 'HW-AUTHENTICATED'}</code>
+            </div>
+          )}
 
-        <p style={{ fontSize: '12px', color: '#a1a1aa', marginBottom: '12px' }}>
-          Point camera at the donor's Handshake QR to verify collection.
-        </p>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+            Point the camera at the donor's QR code to verify physical handover.
+          </p>
 
-        <div 
-          id="qr-reader-box" 
-          style={{ 
-            width: '100%', 
-            borderRadius: '12px', 
-            overflow: 'hidden', 
-            background: '#090d16', 
-            minHeight: '220px', 
-            display: 'flex', 
-            flexDirection: 'column',
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            color: '#38bdf8', 
-            padding: '10px'
-          }}
-        />
-
-        {scanMessage && (
-          <div id="scan-feedback-msg" style={{ marginTop: '12px', fontSize: '13px', fontWeight: 700, color: '#34d399', textAlign: 'center' }}>
-            {scanMessage}
-          </div>
-        )}
-
-        {errorMessage && (
-          <div style={{ marginTop: '12px', fontSize: '12px', fontWeight: 700, color: '#f87171', textAlign: 'center' }}>
-            {errorMessage}
-          </div>
-        )}
-
-        <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <button 
-            type="button" 
-            id="simulate-scan-btn"
-            onClick={handleSimulate} 
-            style={{ 
-              background: '#10b981', 
-              color: '#000', 
-              border: 'none', 
-              padding: '8px 14px', 
-              borderRadius: '8px', 
-              fontWeight: 800, 
-              fontSize: '12px',
-              cursor: 'pointer' 
-            }}
-          >
-            ⚡ Simulate Scan Complete (Demo Mode)
-          </button>
-
-          <button 
-            type="button" 
-            onClick={onClose} 
+          <div 
+            id="qr-reader-box" 
             style={{ 
               width: '100%', 
-              padding: '10px', 
-              background: '#27272a', 
-              color: '#fff', 
-              border: 'none', 
-              borderRadius: '8px', 
-              cursor: 'pointer', 
-              fontSize: '13px' 
+              borderRadius: 'var(--radius-xs)', 
+              overflow: 'hidden', 
+              border: '1px solid var(--border)',
+              minHeight: '220px', 
+              display: 'flex', 
+              flexDirection: 'column',
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              padding: '10px'
             }}
-          >
-            Cancel Scanning
-          </button>
+          />
+
+          {scanMessage && (
+            <div id="scan-feedback-msg" style={{ marginTop: '12px', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--status-available-text)', textAlign: 'center' }}>
+              {scanMessage}
+            </div>
+          )}
+
+          {errorMessage && (
+            <div style={{ marginTop: '12px', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--status-critical-text)', textAlign: 'center' }}>
+              {errorMessage}
+            </div>
+          )}
+
+          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <button 
+              type="button" 
+              id="simulate-scan-btn"
+              className="btn btn-secondary btn-sm"
+              onClick={handleSimulate} 
+            >
+              Simulate Scan Complete (Demo Mode)
+            </button>
+
+            <button 
+              type="button" 
+              className="btn btn-outline btn-sm"
+              onClick={onClose} 
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -573,136 +610,99 @@ export function DisputeModal({ isOpen, onClose, listing, userCoords, onSubmitDis
   };
 
   return (
-    <div id="dispute-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div className="dashboard-modal-card" style={{ maxWidth: '440px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ fontSize: '16px', color: '#f87171', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>🚩</span> File Official Incident Report
-          </h3>
-          <button type="button" className="close-x-btn" onClick={() => { stopCam(); onClose(); }}>✕</button>
+    <div id="dispute-modal" className="modal-overlay" onClick={() => { stopCam(); onClose(); }} role="dialog" aria-modal="true">
+      <div className="modal-dialog-panel modal-narrow" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <h3>Report a Problem</h3>
+          <button type="button" className="modal-close-btn" onClick={() => { stopCam(); onClose(); }} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
 
-        {/* Live Distance Geofence Badge */}
-        <div style={{
-          background: isGeofenceValid ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-          border: `1px solid ${isGeofenceValid ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
-          padding: '8px 12px',
-          borderRadius: '8px',
-          fontSize: '12px',
-          color: isGeofenceValid ? '#34d399' : '#f87171',
-          marginBottom: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontWeight: 700
-        }}>
-          <span>📍 Your Distance: {distMeters}m / 300m limit</span>
-          <span style={{
-            background: isGeofenceValid ? '#064e3b' : '#7f1d1d',
-            color: isGeofenceValid ? '#6ee7b7' : '#fca5a5',
-            padding: '2px 8px',
-            borderRadius: '4px',
-            fontSize: '11px',
-            fontWeight: 800
-          }}>
-            {isGeofenceValid ? '[✓ Geofence Verified]' : '[⚠️ Too Far (>300m)]'}
-          </span>
-        </div>
-
-        {!isGeofenceValid ? (
+        <div className="modal-dialog-body">
           <div style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid #ef4444',
-            padding: '10px 12px',
-            borderRadius: '8px',
-            fontSize: '11px',
-            color: '#fca5a5',
+            backgroundColor: isGeofenceValid ? 'var(--status-available-bg)' : 'var(--status-critical-bg)',
+            border: `1px solid ${isGeofenceValid ? 'var(--status-available-border)' : 'var(--status-critical-border)'}`,
+            padding: '10px 14px',
+            borderRadius: 'var(--radius-xs)',
+            fontSize: '0.8125rem',
+            color: isGeofenceValid ? 'var(--status-available-text)' : 'var(--status-critical-text)',
             marginBottom: '14px',
-            lineHeight: 1.4
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontWeight: 600
           }}>
-            <strong>🚫 Geofence Lock Active:</strong> You are currently <strong>{distMeters}m</strong> away. You must be physically present at the pickup site (within 300m) to submit an incident report.
-          </div>
-        ) : (
-          <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 12px', borderRadius: '8px', fontSize: '11px', color: '#fca5a5', marginBottom: '14px', lineHeight: 1.5 }}>
-            <strong>⚠️ Anti-Griefing Security:</strong> You are within the <strong>300m</strong> geofence of this pickup site. Your NGO Darpan signature and live photo evidence will be immutably recorded.
-          </div>
-        )}
-
-        <form id="dispute-form" onSubmit={handleSubmit}>
-          <div className="form-group" style={{ marginBottom: '10px' }}>
-            <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Incident Violation Reason</label>
-            <select 
-              id="dispute-reason-select" 
-              value={reason} 
-              onChange={(e) => setReason(e.target.value)}
-              style={{ padding: '10px', fontSize: '12px' }} 
-              required
-            >
-              <option value="NO_FOOD_EMPTY_LOCATION">🚫 No food available at location / False Post</option>
-              <option value="SPOILED_ROTTEN_FOOD">🤢 Food is spoiled, foul smelling or unsafe</option>
-              <option value="WRONG_PHONE_UNREACHABLE">📞 Fake phone number / Repeatedly unreachable</option>
-              <option value="COMMERCIAL_DEMAND_MONEY">💰 Donor demanded payment/money for surplus</option>
-            </select>
+            <span>Distance: {distMeters}m (300m limit)</span>
+            <span>{isGeofenceValid ? 'Within site boundary' : 'Outside boundary (>300m)'}</span>
           </div>
 
-          <div className="form-group" style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>
-              📸 Physical Evidence Photo <span style={{ color: '#ef4444' }}>* (Mandatory)</span>
-            </label>
-            
-            <div id="dispute-cam-box" style={{ border: '2px dashed #475569', borderRadius: '8px', minHeight: '140px', background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', padding: '10px' }}>
-              <video ref={videoRef} autoPlay playsInline style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', display: cameraActive ? 'block' : 'none', borderRadius: '6px' }} />
-              {evidencePhoto && (
-                <img src={evidencePhoto} style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '6px' }} alt="Evidence" />
-              )}
-              
-              {!cameraActive && !evidencePhoto && (
-                <div id="dispute-cam-placeholder" style={{ textAlign: 'center' }}>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>Snap locked gate, empty vessel, or spoiled food</p>
-                  <button type="button" onClick={startCam} style={{ background: '#ef4444', color: '#fff', fontSize: '11px', fontWeight: 800, border: 'none', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer' }}>
-                    📷 Open On-Spot Camera
-                  </button>
-                </div>
-              )}
-
-              {cameraActive && (
-                <div style={{ display: 'flex', position: 'absolute', bottom: '8px', gap: '8px' }}>
-                  <button type="button" onClick={captureEvidence} style={{ background: '#ef4444', color: '#fff', fontSize: '11px', fontWeight: 800, border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}>
-                    🔴 Snap Evidence
-                  </button>
-                  <button type="button" onClick={stopCam} style={{ background: '#334155', color: '#fff', fontSize: '11px', fontWeight: 700, border: 'none', padding: '6px 10px', borderRadius: '6px', cursor: 'pointer' }}>
-                    ✕ Cancel
-                  </button>
-                </div>
-              )}
+          <form id="dispute-form" onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label className="form-label">Violation Reason</label>
+              <select 
+                id="dispute-reason-select" 
+                value={reason} 
+                onChange={(e) => setReason(e.target.value)}
+                required
+              >
+                <option value="NO_FOOD_EMPTY_LOCATION">No food available at location / False post</option>
+                <option value="SPOILED_ROTTEN_FOOD">Food is spoiled or unsafe</option>
+                <option value="WRONG_PHONE_UNREACHABLE">Wrong contact number / Unreachable</option>
+                <option value="COMMERCIAL_DEMAND_MONEY">Donor demanded payment for surplus</option>
+              </select>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" onClick={() => { stopCam(); onClose(); }} style={{ flex: 1, padding: '10px', background: '#334155', color: '#cbd5e1', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              id="btn-submit-dispute" 
-              disabled={!isGeofenceValid}
-              style={{ 
-                flex: 1, 
-                padding: '10px', 
-                background: isGeofenceValid ? '#ef4444' : '#475569', 
-                color: isGeofenceValid ? '#fff' : '#94a3b8', 
-                border: 'none', 
-                borderRadius: '8px', 
-                fontWeight: 800, 
-                fontSize: '12px', 
-                cursor: isGeofenceValid ? 'pointer' : 'not-allowed',
-                opacity: isGeofenceValid ? 1 : 0.6
-              }}
-            >
-              {isGeofenceValid ? 'Sign & Submit Strike' : 'Submit Locked (>300m)'}
-            </button>
-          </div>
-        </form>
+            <div className="form-group">
+              <label className="form-label">
+                Evidence Photo (Mandatory)
+              </label>
+              
+              <div style={{ border: '1px dashed var(--border)', borderRadius: 'var(--radius-xs)', minHeight: '140px', background: 'var(--surface-alt)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', padding: '10px' }}>
+                <video ref={videoRef} autoPlay playsInline style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', display: cameraActive ? 'block' : 'none', borderRadius: 'var(--radius-xs)' }} />
+                {evidencePhoto && (
+                  <img src={evidencePhoto} style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: 'var(--radius-xs)' }} alt="Evidence" />
+                )}
+                
+                {!cameraActive && !evidencePhoto && (
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>Capture on-site photo evidence</p>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={startCam}>
+                      <Camera size={14} strokeWidth={1.5} />
+                      <span>Open on-spot camera</span>
+                    </button>
+                  </div>
+                )}
+
+                {cameraActive && (
+                  <div style={{ display: 'flex', position: 'absolute', bottom: '8px', gap: '8px' }}>
+                    <button type="button" className="btn btn-primary btn-sm" onClick={captureEvidence}>
+                      Snap evidence
+                    </button>
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={stopCam}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => { stopCam(); onClose(); }} style={{ flex: 1 }}>
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                id="btn-submit-dispute" 
+                className="btn btn-danger"
+                disabled={!isGeofenceValid}
+                style={{ flex: 1 }}
+              >
+                Submit report
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -713,97 +713,98 @@ export function ImpactDashboardModal({ isOpen, onClose, currentUser, history = [
   if (!isOpen) return null;
 
   return (
-    <div id="dashboard-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div className="dashboard-modal-card">
-        <div className="dash-header">
-          <div className="dash-user-wrap">
-            <div className="dash-avatar" id="dash-avatar-icon">🏛️</div>
+    <div id="dashboard-modal" className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal-dialog-panel modal-wide" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <h3>My Impact &amp; Account</h3>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
+        </div>
+
+        <div className="modal-dialog-body">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
             <div>
-              <h3 id="dash-user-name">{currentUser?.name || currentUser?.organization || 'Registered Partner'}</h3>
-              <p id="dash-user-role">{currentUser?.role === 'NGO' ? 'Verified NGO Account' : 'Surplus Food Donor'}</p>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>
+                {currentUser?.name || currentUser?.organization || 'Registered Partner'}
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                {currentUser?.role === 'NGO' ? 'Verified NGO Partner' : currentUser?.role === 'ANIMAL_SHELTER' ? 'Registered Animal Shelter' : 'Surplus Food Donor'}
+              </div>
+            </div>
+            <span className="status-chip available">Verified</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', marginBottom: '24px' }}>
+            <div className="surface-card" style={{ padding: '14px', textAlign: 'center' }}>
+              <div className="label-caps" style={{ marginBottom: '6px' }}>Contributions</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700 }} className="tabular-nums">
+                {history.length}
+              </div>
+            </div>
+            <div className="surface-card" style={{ padding: '14px', textAlign: 'center' }}>
+              <div className="label-caps" style={{ marginBottom: '6px' }}>Trust Score</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--status-available-text)' }}>
+                100 / 100
+              </div>
+            </div>
+            <div className="surface-card" style={{ padding: '14px', textAlign: 'center' }}>
+              <div className="label-caps" style={{ marginBottom: '6px' }}>Estimated Servings</div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700 }} className="tabular-nums">
+                {history.length * 40 || 'Demo data'}
+              </div>
             </div>
           </div>
-          <button type="button" className="close-x-btn" onClick={onClose}>✕</button>
-        </div>
 
-        <div className="dash-stats-grid">
-          <div className="stat-box">
-            <small>Total Contributions</small>
-            <strong id="dash-stat-meals" className="stat-green">{history.length * 40 || 120}</strong>
+          <div className="card-section-title">
+            <span>Contribution History</span>
           </div>
-          <div className="stat-box">
-            <small>Trust Reliability</small>
-            <strong id="dash-stat-trust" className="stat-blue">100%</strong>
-          </div>
-          <div className="stat-box">
-            <small>CO2 Offset Saved</small>
-            <strong id="dash-stat-co2" className="stat-amber">{history.length * 15 || 45} kg</strong>
-          </div>
-        </div>
 
-        {/* Activity History List */}
-        <div style={{ marginBottom: '20px' }}>
-          <div className="dash-section-head">
-            <h4 id="dash-activity-title">Rescue & Contribution History</h4>
-            <span className="sub-sync">Synced live with database</span>
+          <div className="table-responsive" style={{ maxHeight: '240px', marginBottom: '20px' }}>
+            <table className="ruled-table">
+              <thead>
+                <tr>
+                  <th>Item / Consignment</th>
+                  <th>Quantity</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.length === 0 ? (
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '20px' }}>
+                      No contribution history recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  history.map((item, idx) => (
+                    <tr key={idx}>
+                      <td style={{ fontWeight: 600 }}>{item.title}</td>
+                      <td>{item.quantity}</td>
+                      <td>
+                        <span className="status-chip available">Completed</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-          <div id="dash-activity-list" className="dash-list-scroll">
-            {history.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '16px' }}>
-                No recent activity recorded yet.
-              </p>
-            ) : (
-              history.map((item, idx) => (
-                <div key={idx} style={{ padding: '8px 12px', background: '#111827', borderRadius: '6px', marginBottom: '6px', fontSize: '12px', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{item.title}</span>
-                  <span style={{ color: '#10b981' }}>{item.quantity}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
 
-        {/* Action Buttons: 80G Certificate */}
-        <div style={{ marginTop: '16px', display: 'flex', gap: '10px' }}>
-          <button 
-            type="button" 
-            id="download-80g-btn"
-            onClick={() => generate80GCertificate(currentUser, history)}
-            style={{
-              flex: 1,
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              color: '#000',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '12px 16px',
-              fontSize: '13px',
-              fontWeight: 800,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
-            }}
-          >
-            <span>📄</span> Download 80G Certificate (PDF)
-          </button>
-          <button 
-            type="button" 
-            onClick={onClose}
-            style={{
-              background: '#334155',
-              color: '#cbd5e1',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '12px 18px',
-              fontSize: '13px',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            Close
-          </button>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button 
+              type="button" 
+              id="download-80g-btn"
+              className="btn btn-primary"
+              onClick={() => generate80GCertificate(currentUser, history)}
+            >
+              <FileText size={15} strokeWidth={1.5} />
+              <span>Download 80G Certificate (PDF)</span>
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -815,52 +816,53 @@ export function ShareModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   const shareUrl = 'https://foodloop-india.org';
-  const shareText = 'Join FoodLoop Food Rescue Network across Delhi-NCR and Dehradun! ';
+  const shareText = 'Join FoodLoop Food Rescue Network across Delhi-NCR and Dehradun.';
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareUrl);
-    alert('Link copied to clipboard!');
+    alert('Link copied to clipboard.');
   };
 
   return (
-    <div id="share-modal" className="modal-overlay" style={{ display: 'flex' }}>
-      <div className="dashboard-modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-          <h3 style={{ fontSize: '18px', color: '#fff', margin: 0 }}>📢 Share FoodLoop Network</h3>
-          <button type="button" className="close-x-btn" onClick={onClose}>✕</button>
-        </div>
-        <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
-          Help local banquets, restaurants and shelters join our zero food waste movement.
-        </p>
-        
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '20px', flexWrap: 'wrap' }}>
-          <a 
-            id="share-whatsapp-btn" 
-            href={`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + shareUrl)}`} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            style={{ background: '#25d366', color: '#fff', padding: '10px 18px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700, fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-          >
-            <i className="fa-brands fa-whatsapp"></i> WhatsApp
-          </a>
-          <a 
-            id="share-twitter-btn" 
-            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            style={{ background: '#1da1f2', color: '#fff', padding: '10px 18px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700, fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-          >
-            <i className="fa-brands fa-x-twitter"></i> Post
-          </a>
+    <div id="share-modal" className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="modal-dialog-panel modal-narrow" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <h3>Share FoodLoop Initiative</h3>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
 
-        <div style={{ background: '#111827', border: '1px solid #334155', padding: '10px 14px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '12px', color: '#38bdf8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '230px' }}>
-            {shareUrl}
-          </span>
-          <button type="button" onClick={copyLink} style={{ background: '#10b981', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 700, fontSize: '11px', cursor: 'pointer' }}>
-            Copy Link
-          </button>
+        <div className="modal-dialog-body" style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+            Help local banquets, restaurants, and shelters connect with our zero food waste rescue network.
+          </p>
+          
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '20px' }}>
+            <a 
+              id="share-whatsapp-btn" 
+              href={`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="btn btn-primary"
+            >
+              <Share2 size={15} strokeWidth={1.5} />
+              <span>Share via WhatsApp</span>
+            </a>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input 
+              type="text" 
+              readOnly 
+              value={shareUrl} 
+              style={{ flex: 1, fontSize: '0.8125rem' }}
+            />
+            <button type="button" className="btn btn-secondary btn-sm" onClick={copyLink}>
+              <Copy size={14} strokeWidth={1.5} />
+              <span>Copy</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -868,7 +870,7 @@ export function ShareModal({ isOpen, onClose }) {
 }
 
 // ─── 8. Sponsor Meal Modal ──────────────────────────────────────────────────────
-export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContribute, showToast }) {
+export function SponsorMealModal({ isOpen, onClose, currentUser, showToast }) {
   const [selectedPreset, setSelectedPreset] = useState(40);
   const [customAmount, setCustomAmount] = useState('');
   const [name, setName] = useState(currentUser?.name || '');
@@ -922,7 +924,6 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
         throw new Error(orderData.error || 'Failed to create contribution order');
       }
 
-      // Check if Razorpay checkout script is loaded and live/test keys exist
       if (typeof window !== 'undefined' && window.Razorpay && !orderData.mock && orderData.key_id && orderData.key_id !== 'rzp_test_mock') {
         const options = {
           key: orderData.key_id,
@@ -948,7 +949,7 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
               const verifyData = await verifyRes.json();
               if (verifyRes.ok && verifyData.verified) {
                 confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-                if (showToast) showToast(`🎉 Payment of ₹${currentAmount} verified! 80G receipt issued to ${name}.`);
+                if (showToast) showToast(`Payment of ₹${currentAmount} verified. 80G receipt issued to ${name}.`);
                 onClose();
               } else {
                 alert('Payment verification failed.');
@@ -963,7 +964,7 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
             email: contact.includes('@') ? contact.trim() : 'contributor@foodloop.org'
           },
           theme: {
-            color: '#10b981'
+            color: '#1B1E22'
           }
         };
 
@@ -973,7 +974,6 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
         });
         rzp.open();
       } else {
-        // Fallback for demo mode / when testing without live keys
         await fetch('/api/donations/verify-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -986,7 +986,7 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
           })
         });
         confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-        if (showToast) showToast(`❤️ Payment of ₹${currentAmount} recorded (Demo Mode)! 80G receipt generated for ${name}.`);
+        if (showToast) showToast(`Payment of ₹${currentAmount} recorded (Demo Mode). 80G receipt generated for ${name}.`);
         onClose();
       }
     } catch (err) {
@@ -1000,162 +1000,132 @@ export function SponsorMealModal({ isOpen, onClose, currentUser, onProceedContri
     <div 
       id="sponsor-meal-modal" 
       className="modal-overlay" 
-      style={{ display: 'flex' }}
-      onClick={(e) => { if (e.target.id === 'sponsor-meal-modal') onClose(); }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
     >
-      <div className="dashboard-modal-card" style={{ maxWidth: '440px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3 style={{ fontSize: '17px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
-            <span style={{ fontSize: '20px' }}>🍲</span> Sponsor a Rescued Meal
-          </h3>
-          <button type="button" className="close-x-btn" onClick={onClose}>✕</button>
+      <div className="modal-dialog-panel modal-narrow" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-dialog-header">
+          <h3>Sponsor a Rescued Meal</h3>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
 
-        <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '16px', lineHeight: 1.5 }}>
-          Can't donate food? Fund volunteer logistics, insulated rescue boxes, and fuel to safely deliver surplus banquet meals to shelters and street children.
-        </p>
+        <div className="modal-dialog-body">
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+            Fund volunteer logistics, packaging, and fuel to safely deliver surplus banquet meals to community shelters.
+          </p>
 
-        {/* Preset Amounts */}
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 700, display: 'block', marginBottom: '8px' }}>
-            Select Contribution Amount
-          </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '8px' }}>
-            {[
-              { amount: 40, label: '₹40', sub: '1 Meal' },
-              { amount: 200, label: '₹200', sub: '5 Meals' },
-              { amount: 500, label: '₹500', sub: '12 Meals' },
-            ].map(preset => (
-              <button
-                key={preset.amount}
-                type="button"
-                onClick={() => { setSelectedPreset(preset.amount); setCustomAmount(''); }}
-                style={{
-                  background: (!customAmount && selectedPreset === preset.amount) ? 'rgba(16, 185, 129, 0.2)' : '#1e293b',
-                  border: (!customAmount && selectedPreset === preset.amount) ? '2px solid #10b981' : '1px solid #334155',
-                  borderRadius: '8px',
-                  padding: '10px 4px',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  color: (!customAmount && selectedPreset === preset.amount) ? '#34d399' : '#fff'
-                }}
-              >
-                <div style={{ fontWeight: 800, fontSize: '15px' }}>{preset.label}</div>
-                <div style={{ fontSize: '10px', color: '#94a3b8' }}>{preset.sub}</div>
-              </button>
-            ))}
-          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label className="form-label">Select Contribution Amount</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '10px' }}>
+              {[
+                { amount: 40, label: '₹40', sub: '1 Meal' },
+                { amount: 200, label: '₹200', sub: '5 Meals' },
+                { amount: 500, label: '₹500', sub: '12 Meals' },
+              ].map(preset => (
+                <button
+                  key={preset.amount}
+                  type="button"
+                  onClick={() => { setSelectedPreset(preset.amount); setCustomAmount(''); }}
+                  className={`btn ${(!customAmount && selectedPreset === preset.amount) ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ flexDirection: 'column', padding: '10px 4px', height: 'auto' }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: '0.9375rem' }}>{preset.label}</div>
+                  <div style={{ fontSize: '0.6875rem', opacity: 0.8 }}>{preset.sub}</div>
+                </button>
+              ))}
+            </div>
 
-          <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: '12px', top: '10px', color: '#94a3b8', fontSize: '13px' }}>₹</span>
-            <input
-              type="number"
-              placeholder="Or enter custom amount in ₹"
-              value={customAmount}
-              onChange={(e) => setCustomAmount(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 12px 10px 28px',
-                background: '#111827',
-                border: customAmount ? '2px solid #10b981' : '1px solid #334155',
-                borderRadius: '8px',
-                color: '#fff',
-                fontSize: '13px'
-              }}
-              min="10"
-            />
-          </div>
-        </div>
-
-        {/* Impact Live Summary Banner */}
-        <div style={{
-          background: 'rgba(16, 185, 129, 0.12)',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
-          borderRadius: '8px',
-          padding: '10px 14px',
-          marginBottom: '16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <div style={{ fontSize: '11px', color: '#94a3b8' }}>Immediate Impact</div>
-            <div style={{ fontSize: '13px', fontWeight: 800, color: '#34d399' }}>
-              Feeds approx. {mealsEquivalent} {mealsEquivalent === 1 ? 'person' : 'people'}
+            <div style={{ position: 'relative' }}>
+              <input
+                type="number"
+                placeholder="Or enter custom amount in ₹"
+                value={customAmount}
+                onChange={(e) => setCustomAmount(e.target.value)}
+                min="10"
+              />
             </div>
           </div>
-          <div style={{ background: '#064e3b', color: '#6ee7b7', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>
-            80G Tax Deductible
+
+          <div style={{
+            backgroundColor: 'var(--status-available-bg)',
+            border: '1px solid var(--status-available-border)',
+            borderRadius: 'var(--radius-xs)',
+            padding: '10px 14px',
+            marginBottom: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--status-available-text)', textTransform: 'uppercase', fontWeight: 700 }}>
+                Direct Impact
+              </div>
+              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--status-available-text)' }}>
+                Feeds approx. {mealsEquivalent} {mealsEquivalent === 1 ? 'person' : 'people'}
+              </div>
+            </div>
+            <span className="status-chip available">80G Eligible</span>
           </div>
+
+          <form onSubmit={handleContribute}>
+            <div className="form-group">
+              <label className="form-label">Contributor Name</label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Ramesh Chandra"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Phone / Email (for 80G Receipt)</label>
+              <input
+                type="text"
+                required
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+                placeholder="e.g. 9811122233 or donor@example.com"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">PAN Number (Optional, for 80G Certificate)</label>
+              <input
+                type="text"
+                maxLength="10"
+                value={panNumber}
+                onChange={(e) => setPanNumber(e.target.value)}
+                placeholder="e.g. ABCDE1234F"
+                style={{ textTransform: 'uppercase' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onClose}
+                style={{ flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                id="proceed-sponsor-btn"
+                className="btn btn-primary"
+                disabled={loading}
+                style={{ flex: 2 }}
+              >
+                {loading ? 'Processing...' : `Proceed to Contribute ₹${currentAmount}`}
+              </button>
+            </div>
+          </form>
         </div>
-
-        {/* Contributor Form */}
-        <form onSubmit={handleContribute}>
-          <div className="form-group" style={{ marginBottom: '10px' }}>
-            <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Contributor Name</label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Ramesh Chandra"
-              style={{ padding: '9px 12px', fontSize: '12px' }}
-            />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: '10px' }}>
-            <label style={{ fontSize: '12px', color: '#cbd5e1', marginBottom: '4px' }}>Phone / Email (for 80G Receipt)</label>
-            <input
-              type="text"
-              required
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="e.g. 9811122233 or donor@example.com"
-              style={{ padding: '9px 12px', fontSize: '12px' }}
-            />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: '16px' }}>
-            <label style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>PAN Number <span style={{ fontSize: '10px', color: '#64748b' }}>(Optional, for 80G certificate)</span></label>
-            <input
-              type="text"
-              maxLength="10"
-              value={panNumber}
-              onChange={(e) => setPanNumber(e.target.value)}
-              placeholder="e.g. ABCDE1234F"
-              style={{ padding: '9px 12px', fontSize: '12px', textTransform: 'uppercase' }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              onClick={onClose}
-              style={{ flex: 1, padding: '11px', background: '#334155', color: '#cbd5e1', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              id="proceed-sponsor-btn"
-              disabled={loading}
-              style={{
-                flex: 2,
-                padding: '11px',
-                background: loading ? '#475569' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: loading ? '#cbd5e1' : '#000',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 800,
-                fontSize: '13px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: loading ? 'none' : '0 4px 12px rgba(16, 185, 129, 0.25)'
-              }}
-            >
-              {loading ? 'Processing Contribution...' : `Proceed to Contribute ₹${currentAmount}`}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );
@@ -1178,191 +1148,137 @@ export function TermsAndConditionsModal({ isOpen, onClose, onAccept }) {
 
   const handleScroll = (e) => {
     const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
-    if (scrollTop + clientHeight >= scrollHeight - 5) {
+    if (scrollTop + clientHeight >= scrollHeight - 8) {
       setHasScrolledToBottom(true);
     }
   };
 
   const handleConfirm = () => {
     if (!isAgreed) return;
-    onAccept({
-      termsVersion: TERMS_VERSION,
-      acceptedAt: new Date().toISOString()
-    });
+    if (onAccept) {
+      onAccept({
+        termsVersion: TERMS_VERSION,
+        acceptedAt: new Date().toISOString()
+      });
+    } else {
+      onClose();
+    }
   };
 
   return (
-    <div id="terms-modal" className="modal-overlay" style={{ display: 'flex' }}>
+    <div id="terms-modal" className="modal-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div 
-        className="auth-modal-card" 
-        style={{ 
-          maxWidth: '650px', 
-          width: '95%', 
-          maxHeight: '90vh', 
-          display: 'flex', 
-          flexDirection: 'column',
-          background: '#0f172a',
-          border: '1.5px solid #334155',
-          borderRadius: '16px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
-        }}
+        className="modal-dialog-panel modal-wide" 
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-top-row" style={{ marginBottom: '12px', borderBottom: '1px solid #1e293b', paddingBottom: '12px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '20px' }}>⚖️</span>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#f8fafc' }}>
-                Donor Terms &amp; Conditions
-              </h3>
-              <span style={{ 
-                background: 'rgba(56, 189, 248, 0.15)', 
-                color: '#38bdf8', 
-                fontSize: '11px', 
-                padding: '2px 8px', 
-                borderRadius: '6px', 
-                fontWeight: 700 
-              }}>
-                {TERMS_VERSION}
-              </span>
-            </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-              Mandatory legal confirmation before posting a surplus food donation.
-            </p>
+        <div className="modal-dialog-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3>Donor Terms &amp; Conditions</h3>
+            <span className="status-chip info">{TERMS_VERSION}</span>
           </div>
-          <button type="button" className="close-x-btn" onClick={onClose} aria-label="Close Terms modal">✕</button>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
 
-        {/* Scrollable Terms Content */}
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="custom-scrollbar"
-          id="terms-content-scroll"
-          style={{
-            maxHeight: '400px',
-            overflowY: 'auto',
-            background: '#090d16',
-            border: '1px solid #1e293b',
-            borderRadius: '8px',
-            padding: '16px 20px',
-            color: '#cbd5e1',
-            fontSize: '13px',
-            lineHeight: '1.7',
-            whiteSpace: 'pre-wrap',
-            fontFamily: 'system-ui, -apple-system, sans-serif'
-          }}
-        >
-          {TERMS_CONTENT_V1}
-        </div>
+        <div className="modal-dialog-body">
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+            Confirmation of surplus food rescue standards and volunteer handling guidelines.
+          </p>
 
-        {/* Scroll Notice & Agreement Gate */}
-        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #1e293b' }}>
-          {!hasScrolledToBottom ? (
-            <div style={{
-              background: 'rgba(245, 158, 11, 0.1)',
-              border: '1px dashed rgba(245, 158, 11, 0.4)',
-              color: '#fbbf24',
-              fontSize: '12px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              marginBottom: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <span>📜</span>
-              <span>Please scroll to the bottom of the terms above to unlock agreement.</span>
-            </div>
-          ) : (
-            <div style={{
-              background: 'rgba(16, 185, 129, 0.1)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              color: '#34d399',
-              fontSize: '12px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              marginBottom: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <span>✓</span>
-              <span>You have scrolled through the entire legal agreement.</span>
-            </div>
-          )}
-
-          <label
-            htmlFor="terms-agreement-checkbox"
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            id="terms-content-scroll"
             style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '10px',
-              cursor: hasScrolledToBottom ? 'pointer' : 'not-allowed',
-              opacity: hasScrolledToBottom ? 1 : 0.45,
-              userSelect: 'none',
-              marginBottom: '16px'
+              maxHeight: '360px',
+              overflowY: 'auto',
+              background: 'var(--canvas)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-xs)',
+              padding: '16px 20px',
+              color: 'var(--text-primary)',
+              fontSize: '0.8125rem',
+              lineHeight: '1.65',
+              whiteSpace: 'pre-wrap'
             }}
           >
-            <input
-              type="checkbox"
-              id="terms-agreement-checkbox"
-              disabled={!hasScrolledToBottom}
-              checked={isAgreed}
-              onChange={(e) => setIsAgreed(e.target.checked)}
-              style={{
-                marginTop: '3px',
-                width: '18px',
-                height: '18px',
-                cursor: hasScrolledToBottom ? 'pointer' : 'not-allowed',
-                accentColor: '#10b981'
-              }}
-            />
-            <span style={{ fontSize: '13px', color: '#f1f5f9', fontWeight: 600, lineHeight: 1.4 }}>
-              I have read and agree to the Donor Terms &amp; Conditions above
-            </span>
-          </label>
+            {TERMS_CONTENT_V1}
+          </div>
 
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={onClose}
+          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+            {!hasScrolledToBottom ? (
+              <div style={{
+                backgroundColor: 'var(--status-expiring-bg)',
+                border: '1px solid var(--status-expiring-border)',
+                color: 'var(--status-expiring-text)',
+                fontSize: '0.75rem',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-xs)',
+                marginBottom: '12px'
+              }}>
+                Please scroll to the bottom of the agreement above to proceed.
+              </div>
+            ) : (
+              <div style={{
+                backgroundColor: 'var(--status-available-bg)',
+                border: '1px solid var(--status-available-border)',
+                color: 'var(--status-available-text)',
+                fontSize: '0.75rem',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-xs)',
+                marginBottom: '12px'
+              }}>
+                Terms scrolled completely.
+              </div>
+            )}
+
+            <label
+              htmlFor="terms-agreement-checkbox"
               style={{
-                padding: '10px 18px',
-                background: '#1e293b',
-                color: '#94a3b8',
-                border: '1px solid #334155',
-                borderRadius: '8px',
-                fontWeight: 600,
-                fontSize: '13px',
-                cursor: 'pointer'
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                cursor: hasScrolledToBottom ? 'pointer' : 'not-allowed',
+                opacity: hasScrolledToBottom ? 1 : 0.5,
+                userSelect: 'none',
+                marginBottom: '16px'
               }}
             >
-              Cancel
-            </button>
-            <button
-              type="button"
-              id="confirm-post-donation-btn"
-              disabled={!isAgreed}
-              onClick={handleConfirm}
-              style={{
-                padding: '10px 22px',
-                background: isAgreed ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#334155',
-                color: isAgreed ? '#000' : '#64748b',
-                border: 'none',
-                borderRadius: '8px',
-                fontWeight: 800,
-                fontSize: '13px',
-                cursor: isAgreed ? 'pointer' : 'not-allowed',
-                boxShadow: isAgreed ? '0 4px 14px rgba(16, 185, 129, 0.3)' : 'none',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              Confirm &amp; Post Donation
-            </button>
+              <input
+                type="checkbox"
+                id="terms-agreement-checkbox"
+                disabled={!hasScrolledToBottom}
+                checked={isAgreed}
+                onChange={(e) => setIsAgreed(e.target.checked)}
+                style={{ width: '18px', height: '18px' }}
+              />
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
+                I have read and agree to the Donor Terms &amp; Conditions above
+              </span>
+            </label>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onClose}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                id="confirm-post-donation-btn"
+                className="btn btn-primary"
+                disabled={!isAgreed}
+                onClick={handleConfirm}
+              >
+                Confirm &amp; Proceed
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
