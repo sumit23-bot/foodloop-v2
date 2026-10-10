@@ -2,13 +2,17 @@
   "name": "foodloop",
   "version": "1.0.0",
   "description": "",
-  "main": "script.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "lint": "eslint server.js tests/",
     "build": "npm --prefix client run build",
-    "client": "npm --prefix client run dev",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "client": "npm --prefix client run dev"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "keywords": [],
   "author": "",

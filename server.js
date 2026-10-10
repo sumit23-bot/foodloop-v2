@@ -517,10 +517,36 @@ async function callGeminiVision(cleanBase64, promptText, key) {
   return null; // all models failed
 }
 
+// G5: Healthcheck endpoint (Fix Group G5)
+app.get('/api/health', (req, res) => {
+  const isKeyConfigured = Boolean(
+    GEMINI_API_KEY &&
+    GEMINI_API_KEY !== 'YOUR_API_KEY_HERE' &&
+    !GEMINI_API_KEY.includes('your_gemini_api_key')
+  );
+  res.json({
+    status: 'ok',
+    version: '2.0.0',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    db_mode: isDbConnected() ? 'connected' : 'memory',
+    demo_mode: DEMO_MODE,
+    gemini_status: isKeyConfigured ? 'configured' : 'fallback'
+  });
+});
+
 app.post('/api/ai/verify-food', async (req, res) => {
   const { imageBase64 } = req.body;
   if (!imageBase64) {
     return res.status(400).json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'No image provided.' });
+  }
+
+  const rawBase64 = String(imageBase64)
+    .replace(/^data:image\/[^;]+;base64,/, '')
+    .replace(/\s+/g, '');
+
+  if (!rawBase64 || rawBase64.length < 16 || !/^[A-Za-z0-9+/]+={0,2}$/.test(rawBase64)) {
+    return res.status(400).json({ is_food: false, confidence: 0, is_bulk: false, quantity_level: 'LOW_QUANTITY', reason: 'Invalid base64 image data provided.' });
   }
 
   const isKeyConfigured = GEMINI_API_KEY &&
@@ -541,9 +567,6 @@ app.post('/api/ai/verify-food', async (req, res) => {
   }
 
   try {
-    const rawBase64 = String(imageBase64)
-      .replace(/^data:image\/[^;]+;base64,/, '')
-      .replace(/\s+/g, '');
 
     // Compress image to max 640px to reduce payload size (prevents 503 overload)
     let cleanBase64 = rawBase64;
@@ -1850,36 +1873,74 @@ app.patch('/api/incidents/:id', requireAuth, requireRole('ADMIN'), async (req, r
 // --------------------------------------------------
 // 9. DIRECT NGO-TO-DONOR NOTES & FEEDBACK PIPELINE
 // --------------------------------------------------
-app.post('/api/contact', [
-  body('name').trim().notEmpty().withMessage('Name is required and cannot be empty.'),
-  body('email').trim().isEmail().withMessage('A valid email address is required.'),
-  body('message').trim().notEmpty().withMessage('Message is required and cannot be empty.'),
+app.post(['/api/contact', '/api/contacts'], [
+  body('name').trim().notEmpty().withMessage('Name is required and cannot be empty.').isLength({ max: 100 }).withMessage('Name cannot exceed 100 characters.'),
+  body('email').trim().isEmail().withMessage('A valid email address is required.').normalizeEmail(),
+  body('message').trim().notEmpty().withMessage('Message is required and cannot be empty.').isLength({ max: 2000 }).withMessage('Message cannot exceed 2000 characters.'),
+  body('donor_phone').optional().trim().isLength({ max: 30 }),
+  body('donor_name').optional().trim().isLength({ max: 100 }),
   validateRequest
 ], async (req, res) => {
   const { name, email, message, donor_phone, donor_name } = req.body;
+  const cleanName = String(name).trim().slice(0, 100);
+  const cleanEmail = String(email).trim().toLowerCase().slice(0, 120);
+  const cleanMessage = String(message).trim().slice(0, 2000);
+  const cleanPhone = donor_phone ? String(donor_phone).trim().slice(0, 30) : 'ALL';
+  const cleanDonorName = donor_name ? String(donor_name).trim().slice(0, 100) : 'All Registered Donors';
 
   try {
-    const newNote = new Contact({ name, email, message, donor_phone: donor_phone || 'ALL', donor_name: donor_name || 'All Registered Donors' });
-    await newNote.save();
-    res.status(201).json({ success: true, note: newNote });
+    if (isDbConnected()) {
+      const newNote = new Contact({
+        name: cleanName,
+        email: cleanEmail,
+        message: cleanMessage,
+        donor_phone: cleanPhone,
+        donor_name: cleanDonorName
+      });
+      await newNote.save();
+      return res.status(201).json({ success: true, note: newNote });
+    } else {
+      const fallbackNote = {
+        id: Date.now().toString(),
+        name: cleanName,
+        email: cleanEmail,
+        message: cleanMessage,
+        donor_phone: cleanPhone,
+        donor_name: cleanDonorName,
+        created_at: new Date()
+      };
+      memoryContacts.unshift(fallbackNote);
+      return res.status(201).json({ success: true, note: fallbackNote });
+    }
   } catch (err) {
-    const fallbackNote = { id: Date.now().toString(), name, email, message, donor_phone: donor_phone || 'ALL', donor_name: donor_name || 'All Registered Donors', created_at: new Date() };
+    const fallbackNote = {
+      id: Date.now().toString(),
+      name: cleanName,
+      email: cleanEmail,
+      message: cleanMessage,
+      donor_phone: cleanPhone,
+      donor_name: cleanDonorName,
+      created_at: new Date()
+    };
     memoryContacts.unshift(fallbackNote);
-    res.status(201).json({ success: true, note: fallbackNote });
+    return res.status(201).json({ success: true, note: fallbackNote });
   }
 });
 
-app.get('/api/contact', requireAuth, async (req, res) => {
+app.get(['/api/contact', '/api/contacts'], requireAuth, async (req, res) => {
   const { donor_phone } = req.query;
   try {
     let query = {};
     if (donor_phone && donor_phone !== 'ALL') {
       query = { $or: [{ donor_phone: donor_phone }, { donor_phone: 'ALL' }] };
     }
-    const notes = await Contact.find(query).sort({ created_at: -1 });
-    res.json(notes.length > 0 ? notes : memoryContacts);
+    if (isDbConnected()) {
+      const notes = await Contact.find(query).sort({ created_at: -1 });
+      return res.json(notes.length > 0 ? notes : memoryContacts);
+    }
+    return res.json(memoryContacts);
   } catch {
-    res.json(memoryContacts);
+    return res.json(memoryContacts);
   }
 });
 
@@ -2071,6 +2132,27 @@ app.post('/api/donations/verify-payment', async (req, res) => {
     console.error('Payment signature check failed:', err);
     return res.status(400).json({ error: 'Payment verification error.' });
   }
+});
+
+// Global Express Error-Handling Middleware (Fix Group G4)
+app.use((err, req, res, next) => {
+  console.error('🔥 Express Global Error Handler caught:', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    error: err.message || 'Internal Server Error'
+  });
+});
+
+// Process-level unhandled rejection & uncaught exception handlers (Fix Group G4)
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ Unhandled Promise Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('🚨 Uncaught Exception:', err);
 });
 
 // Root and SPA Catch-All Route: Serve React App if built, else fallback to vanilla index.html
