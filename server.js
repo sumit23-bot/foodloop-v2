@@ -208,7 +208,7 @@ const DonationSchema = new mongoose.Schema({
   quantity: { type: String, required: true },
   expiry_hours: { type: Number, default: 3 },
   address: { type: String, required: true },
-  phone: { type: String, default: '+91 98996 36474' },
+  phone: { type: String, required: true },
   donor_id: { type: String, default: '' },
   donor_name: { type: String, default: 'Anonymous Donor' },
   image: { type: String, default: '' },
@@ -542,13 +542,27 @@ Rules:
     // Verified ONLY if is_food === true AND confidence >= 60
     const isVerified = rawIsFood && confidence >= 60;
 
+    let verificationToken = '';
+    if (isVerified) {
+      verificationToken = jwt.sign({
+        is_food: true,
+        confidence,
+        is_bulk: isBulk,
+        quantity_level: quantityLevel,
+        estimated_servings_range: estimatedServings,
+        reason,
+        timestamp: Date.now()
+      }, JWT_SECRET, { expiresIn: '2h' });
+    }
+
     return res.json({
       is_food: isVerified,
       confidence,
       is_bulk: isBulk,
       quantity_level: quantityLevel,
       estimated_servings_range: estimatedServings,
-      reason
+      reason,
+      verification_token: verificationToken
     });
 
   } catch (err) {
@@ -935,23 +949,141 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // --------------------------------------------------
-// 7. SURPLUS FOOD DONATION CONTROLLERS
+// 7. SURPLUS FOOD DONATION CONTROLLERS (Fix Group C)
 // --------------------------------------------------
+async function findDonation(id) {
+  if (!id) return null;
+  const strId = String(id).trim();
+  if (isDbConnected()) {
+    try {
+      if (mongoose.Types.ObjectId.isValid(strId)) {
+        const doc = await Donation.findById(strId);
+        if (doc) return doc;
+      }
+      const doc = await Donation.findOne({ id: strId });
+      if (doc) return doc;
+    } catch (_) {}
+  }
+  return memoryDonations.find(d => String(d.id || d._id) === strId) || null;
+}
+
+function getEffectiveDonationStatus(donation) {
+  if (!donation) return 'EXPIRED';
+  const currentStatus = donation.status;
+  if (['CLAIMED', 'DELIVERED', 'FLAGGED_FAKE'].includes(currentStatus)) {
+    return currentStatus;
+  }
+  const createdAt = new Date(donation.created_at || Date.now()).getTime();
+  const expiryHours = Number(donation.expiry_hours) || 3;
+  const expiryMs = expiryHours * 60 * 60 * 1000;
+  const now = Date.now();
+
+  // Dual-Loop Rule (C3): <= 1 hour safe window routes directly to Animal loop
+  if (expiryHours <= 1 || currentStatus === 'DIVERTED_TO_ANIMALS') {
+    return 'DIVERTED_TO_ANIMALS';
+  }
+
+  // Automatic expiry: past safe window, auto-route to animal loop
+  if (now > createdAt + expiryMs) {
+    return 'DIVERTED_TO_ANIMALS';
+  }
+
+  return currentStatus || 'AVAILABLE';
+}
+
+function getApproximateArea(address) {
+  if (!address) return 'Delhi-NCR Area';
+  const parts = String(address).split(',').map(s => s.trim()).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || 'Delhi-NCR Area';
+  return parts.slice(-2).join(', ');
+}
+
+function sanitizeDonationForViewer(donation, viewerUser) {
+  const d = donation.toObject ? donation.toObject() : { ...donation };
+  const effectiveStatus = getEffectiveDonationStatus(d);
+  d.status = effectiveStatus;
+
+  const isAdmin = viewerUser?.role === 'ADMIN';
+  const isDonor = viewerUser && (viewerUser.id === d.donor_id || viewerUser.phone === d.phone);
+  const isClaimant = viewerUser && d.status === 'CLAIMED' && (
+    (d.claimed_by_ngo && (viewerUser.org_name === d.claimed_by_ngo || viewerUser.name === d.claimed_by_ngo || viewerUser.organization === d.claimed_by_ngo)) ||
+    (d.claimant_phone && viewerUser.phone === d.claimant_phone)
+  );
+
+  const canSeePrivateDetails = Boolean(isAdmin || isDonor || isClaimant);
+
+  if (!canSeePrivateDetails) {
+    delete d.phone;
+    d.address = getApproximateArea(d.address);
+  }
+
+  // C6: Replace massive base64 payload in feeds with image URL endpoint
+  const itemId = d._id ? d._id.toString() : (d.id || '');
+  d.id = itemId;
+  if (d.image && (d.image.startsWith('data:') || d.image.length > 500)) {
+    d.image = `/api/donations/${itemId}/image`;
+  }
+
+  return d;
+}
+// C6: Image endpoint for bandwidth-efficient lazy loading
+app.get('/api/donations/:id/image', async (req, res) => {
+  const donation = await findDonation(req.params.id);
+  if (!donation || !donation.image) {
+    return res.status(404).send('Image not found');
+  }
+
+  if (donation.image.startsWith('data:image/')) {
+    const matches = donation.image.match(/^data:(image\/[^;]+);base64,(.+)$/);
+    if (matches) {
+      const mimeType = matches[1];
+      const imgBuffer = Buffer.from(matches[2], 'base64');
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(imgBuffer);
+    }
+  }
+
+  if (donation.image.startsWith('http://') || donation.image.startsWith('https://')) {
+    return res.redirect(donation.image);
+  }
+
+  return res.status(404).send('Image format not supported');
+});
+
+// C6 & C7: Consolidated feed with server-side privacy protection
 app.get('/api/donations', async (req, res) => {
+  let viewerUser = null;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      viewerUser = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+    } catch (_) {}
+  }
+
   try {
-    const list = await Donation.find().sort({ created_at: -1 });
-    res.json(list.length > 0 ? list : memoryDonations);
-  } catch {
-    res.json(memoryDonations);
+    let list = [];
+    if (isDbConnected()) {
+      list = await Donation.find().sort({ created_at: -1 });
+    } else {
+      list = [...memoryDonations];
+    }
+    const sanitized = list.map(item => sanitizeDonationForViewer(item, viewerUser));
+    return res.json(sanitized);
+  } catch (err) {
+    console.warn('Error fetching donations list:', err.message);
+    const fallback = memoryDonations.map(item => sanitizeDonationForViewer(item, viewerUser));
+    return res.json(fallback);
   }
 });
 
+// C2, C3, C4: Post Donation with Minimum 10 Meals, Dual-Loop, and AI Verification Enforcement
 app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
-  body('title').trim().notEmpty().withMessage('Donation title is required and cannot be empty.'),
-  body('quantity').trim().notEmpty().withMessage('Quantity is required and cannot be empty.'),
-  body('address').trim().notEmpty().withMessage('Pickup address is required and cannot be empty.'),
-  body('termsAcceptance.version').notEmpty().withMessage('Terms & Conditions acceptance is required to post a donation.'),
-  body('termsAcceptance.acceptedAt').notEmpty().withMessage('Terms & Conditions acceptance is required to post a donation.'),
+  body('title').trim().notEmpty().withMessage('Donation title is required.').isLength({ max: 200 }).withMessage('Title too long.'),
+  body('quantity').trim().notEmpty().withMessage('Quantity is required.').isLength({ max: 100 }).withMessage('Quantity too long.'),
+  body('address').trim().notEmpty().withMessage('Pickup address is required.').isLength({ max: 500 }).withMessage('Address too long.'),
+  body('termsAcceptance.version').notEmpty().withMessage('Terms & Conditions acceptance is required.'),
+  body('termsAcceptance.acceptedAt').notEmpty().withMessage('Terms & Conditions acceptance is required.'),
   validateRequest
 ], async (req, res) => {
   const { 
@@ -965,14 +1097,77 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
     coords,
     is_live_capture, 
     ai_detected_class, 
-    verification_code 
+    verification_code,
+    ai_verification_token
   } = req.body;
+
   const donorPhone = req.user?.phone || req.body.phone;
   const donorId = req.user?.id || req.body.donor_id || '';
   const donorName = req.user?.name || req.body.donor_name || 'Anonymous Donor';
 
+  if (!donorPhone) {
+    return res.status(400).json({ error: 'Donor phone number is required.' });
+  }
+
   if (memoryBlacklist.has(donorPhone) || req.user?.is_blacklisted) {
-    return res.status(403).json({ error: 'This phone number is permanently blacklisted due to multiple verified disputes.' });
+    return res.status(403).json({ error: 'This phone number is permanently blacklisted due to verified violations.' });
+  }
+
+  // C2: Validate expiry_hours (>0 and <=72)
+  const numExpiry = Number(expiry_hours);
+  if (isNaN(numExpiry) || numExpiry <= 0 || numExpiry > 72) {
+    return res.status(400).json({ error: 'expiry_hours must be a valid number between 0.5 and 72 hours.' });
+  }
+
+  // C2: Enforce 10-meal minimum policy
+  const cleanQty = String(quantity).trim();
+  const digitsMatch = cleanQty.match(/\d+/);
+  const parsedCount = digitsMatch ? parseInt(digitsMatch[0], 10) : 0;
+  if (parsedCount > 0 && parsedCount < 10) {
+    return res.status(400).json({ error: 'Minimum surplus policy: FoodLoop requires at least 10+ servings for donation listings.' });
+  }
+
+  if (req.body.quantity_level === 'LOW_QUANTITY' && !DEMO_MODE) {
+    return res.status(400).json({ error: 'Single meals/low-quantity items cannot be listed. Minimum 10 meals required.' });
+  }
+
+  // Validate coords if present
+  let cleanCoords = { lat: 28.6139, lon: 77.2090 };
+  if (coords && typeof coords.lat === 'number' && typeof coords.lon === 'number') {
+    if (coords.lat < -90 || coords.lat > 90 || coords.lon < -180 || coords.lon > 180) {
+      return res.status(400).json({ error: 'Coordinates out of valid geographical range.' });
+    }
+    cleanCoords = { lat: coords.lat, lon: coords.lon };
+  }
+
+  // Validate image payload size
+  if (image && image.length > 20 * 1024 * 1024) {
+    return res.status(400).json({ error: 'Image size exceeds maximum allowed 20MB limit.' });
+  }
+
+  // C2: AI Verification token verification
+  let isFoodVerified = true;
+  let isBulkVerified = true;
+  let quantityLevelVerified = 'BULK_SURPLUS';
+  let estimatedServingsRange = '';
+  let portionReason = '';
+
+  if (ai_verification_token) {
+    try {
+      const verifiedToken = jwt.verify(ai_verification_token, JWT_SECRET);
+      if (!verifiedToken.is_food) {
+        return res.status(400).json({ error: 'AI food verification token rejected: Image does not show verified food.' });
+      }
+      isFoodVerified = true;
+      isBulkVerified = Boolean(verifiedToken.is_bulk);
+      quantityLevelVerified = verifiedToken.quantity_level || 'BULK_SURPLUS';
+      estimatedServingsRange = verifiedToken.estimated_servings_range || '';
+      portionReason = verifiedToken.reason || '';
+    } catch (_tokErr) {
+      return res.status(400).json({ error: 'Invalid or expired AI verification token. Please re-verify photo.' });
+    }
+  } else if (!DEMO_MODE && isProduction) {
+    return res.status(400).json({ error: 'AI photo verification token is mandatory before publishing listing.' });
   }
 
   const clientIp = req.ip || req.socket?.remoteAddress || '127.0.0.1';
@@ -983,57 +1178,71 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
   };
 
   const imageHash = image ? await computePerceptualHash(image) : '';
-  const numExpiry = Number(expiry_hours) || 3;
-  const initialStatus = numExpiry === 1 ? 'DIVERTED_TO_ANIMALS' : 'AVAILABLE';
+  // C3: <= 1 hour safe window routes directly to Animal loop
+  const initialStatus = numExpiry <= 1 ? 'DIVERTED_TO_ANIMALS' : 'AVAILABLE';
 
   const donationData = {
+    id: crypto.randomUUID(),
     title: String(title).trim(),
     category: category || food_type || 'Vegetarian',
     food_type: food_type || category || 'Vegetarian',
-    quantity: String(quantity).trim(),
+    quantity: cleanQty,
     expiry_hours: numExpiry,
     address: String(address).trim(),
     image: image || '',
     image_hash: imageHash,
-    coords: coords && typeof coords.lat === 'number' && typeof coords.lon === 'number' 
-      ? { lat: coords.lat, lon: coords.lon }
-      : { lat: 28.6139, lon: 77.2090 },
+    coords: cleanCoords,
     phone: donorPhone,
     donor_id: donorId,
     donor_name: donorName,
     verification_code: verification_code || 'HW-AUTH',
     is_verified: true,
-    is_food_verified: true,
-    is_bulk: req.body.is_bulk !== undefined ? Boolean(req.body.is_bulk) : true,
-    quantity_level: req.body.quantity_level || 'BULK_SURPLUS',
-    estimated_servings_range: req.body.estimated_servings_range || '',
-    ai_portion_reason: req.body.ai_portion_reason || '',
+    is_food_verified: isFoodVerified,
+    is_bulk: isBulkVerified,
+    quantity_level: quantityLevelVerified,
+    estimated_servings_range: estimatedServingsRange || (isBulkVerified ? '15+ servings' : '1-4 servings'),
+    ai_portion_reason: portionReason || req.body.ai_portion_reason || '',
     is_live_capture: is_live_capture !== undefined ? Boolean(is_live_capture) : true,
     ai_detected_class: ai_detected_class || 'Live Hardware Camera Verified',
     trust_score: 100,
     status: initialStatus,
     termsAcceptance: termsRecord,
-    terms_acceptance: termsRecord
+    terms_acceptance: termsRecord,
+    created_at: new Date()
   };
 
   try {
-    const newItem = new Donation(donationData);
-    await newItem.save();
-    res.status(201).json(newItem);
+    if (isDbConnected()) {
+      const newItem = new Donation(donationData);
+      await newItem.save();
+      return res.status(201).json(sanitizeDonationForViewer(newItem, req.user));
+    } else {
+      memoryDonations.unshift(donationData);
+      return res.status(201).json(sanitizeDonationForViewer(donationData, req.user));
+    }
   } catch (err) {
-    const fallbackItem = { 
-      id: Date.now().toString(), 
-      ...donationData,
-      created_at: new Date()
-    };
-    memoryDonations.unshift(fallbackItem);
-    res.status(201).json(fallbackItem);
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: err.message });
+    }
+    if (err.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid data format provided.' });
+    }
+    console.error('Error saving donation, failover to memory:', err);
+    memoryDonations.unshift(donationData);
+    return res.status(201).json(sanitizeDonationForViewer(donationData, req.user));
   }
 });
 
+// C1: Atomic claim with strict role check, duplicate protection, and dual loop rules
 app.patch('/api/donations/:id/claim', requireAuth, async (req, res) => {
   if (req.user?.is_blacklisted || memoryBlacklist.has(req.user?.phone)) {
     return res.status(403).json({ error: 'Your account is blacklisted and cannot claim donations.' });
+  }
+
+  // C1: Role authorization - only verified NGO, SHELTER, or ANIMAL_SHELTER
+  const callerRole = req.user?.role;
+  if (!['NGO', 'SHELTER', 'ANIMAL_SHELTER'].includes(callerRole)) {
+    return res.status(403).json({ error: 'Forbidden: Only verified NGOs, Shelters, and Gaushalas are authorized to claim surplus food.' });
   }
 
   const { claimant_phone, claimant_org, ngo_name, darpan_id } = req.body || {};
@@ -1041,56 +1250,64 @@ app.patch('/api/donations/:id/claim', requireAuth, async (req, res) => {
   const orgPhone = claimant_phone || req.user?.phone || '';
   const orgDarpan = darpan_id || req.user?.ngo_darpan_id || req.user?.darpan_id || '';
 
+  const donation = await findDonation(req.params.id);
+  if (!donation) {
+    return res.status(404).json({ error: 'Donation listing not found.' });
+  }
+
+  const effectiveStatus = getEffectiveDonationStatus(donation);
+
+  if (effectiveStatus === 'FLAGGED_FAKE') {
+    return res.status(400).json({ error: 'This listing has been flagged for safety violations and cannot be claimed.' });
+  }
+
+  if (effectiveStatus === 'CLAIMED') {
+    return res.status(409).json({ error: 'Conflict: This donation has already been claimed by another organization.' });
+  }
+
+  // Animal shelter can only claim diverted listings
+  if (callerRole === 'ANIMAL_SHELTER' && effectiveStatus === 'AVAILABLE') {
+    return res.status(400).json({ error: 'This listing is reserved for human community feeding. Animal shelters can claim from the Animal & Gaushala loop.' });
+  }
+
+  const targetId = donation._id ? donation._id.toString() : donation.id;
+
   try {
-    let updated = null;
-    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-      updated = await Donation.findByIdAndUpdate(
-        req.params.id, 
-        { 
-          status: 'CLAIMED', 
-          claimed_by_ngo: orgName,
-          claimed_by: orgName,
-          claimant_phone: orgPhone,
-          darpan_id: orgDarpan
-        }, 
-        { new: true }
-      );
-    }
-    if (!updated) {
-      updated = await Donation.findOneAndUpdate(
-        { $or: [{ id: req.params.id }, { _id: req.params.id }] },
-        { 
-          status: 'CLAIMED', 
-          claimed_by_ngo: orgName,
-          claimed_by: orgName,
-          claimant_phone: orgPhone,
-          darpan_id: orgDarpan
-        }, 
-        { new: true }
-      );
-    }
-    if (!updated) {
-      const item = memoryDonations.find(d => String(d.id) === String(req.params.id) || String(d._id) === String(req.params.id));
-      if (item) {
-        item.status = 'CLAIMED';
-        item.claimed_by_ngo = orgName;
-        item.claimed_by = orgName;
-        item.claimant_phone = orgPhone;
-        item.darpan_id = orgDarpan;
-        return res.json(item);
+    if (isDbConnected()) {
+      const filter = {
+        _id: donation._id,
+        status: { $in: ['AVAILABLE', 'DIVERTED_TO_ANIMALS'] }
+      };
+      const updated = await Donation.findOneAndUpdate(filter, {
+        status: 'CLAIMED',
+        claimed_by_ngo: orgName,
+        claimed_by: orgName,
+        claimant_phone: orgPhone,
+        darpan_id: orgDarpan
+      }, { returnDocument: 'after' });
+
+      if (!updated) {
+        return res.status(409).json({ error: 'Conflict: This donation was already claimed.' });
       }
+      return res.json(sanitizeDonationForViewer(updated, req.user));
+    } else {
+      const memItem = memoryDonations.find(d => String(d.id || d._id) === targetId);
+      if (memItem) {
+        if (memItem.status === 'CLAIMED') {
+          return res.status(409).json({ error: 'Conflict: This donation has already been claimed by another organization.' });
+        }
+        memItem.status = 'CLAIMED';
+        memItem.claimed_by_ngo = orgName;
+        memItem.claimed_by = orgName;
+        memItem.claimant_phone = orgPhone;
+        memItem.darpan_id = orgDarpan;
+        return res.json(sanitizeDonationForViewer(memItem, req.user));
+      }
+      return res.status(404).json({ error: 'Donation listing not found in memory.' });
     }
-    res.json(updated || { status: 'CLAIMED', claimed_by_ngo: orgName, claimed_by: orgName });
   } catch (err) {
-    const item = memoryDonations.find(d => String(d.id) === String(req.params.id) || String(d._id) === String(req.params.id));
-    if (item) {
-      item.status = 'CLAIMED';
-      item.claimed_by_ngo = orgName;
-      item.claimed_by = orgName;
-      item.claimant_phone = orgPhone;
-      item.darpan_id = orgDarpan;
-    }
-    res.json(item || { status: 'CLAIMED', claimed_by_ngo: orgName, claimed_by: orgName });
+    console.error('Claim error:', err);
+    return res.status(500).json({ error: 'Failed to claim donation.' });
   }
 });
 

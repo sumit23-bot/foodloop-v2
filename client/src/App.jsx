@@ -112,7 +112,10 @@ export default function App() {
 
   const loadListings = async () => {
     try {
-      const res = await fetch('/api/donations');
+      const token = getAuthToken();
+      const res = await fetch('/api/donations', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       const data = await res.json();
       if (Array.isArray(data)) {
         setListings(data);

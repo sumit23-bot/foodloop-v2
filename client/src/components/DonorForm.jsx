@@ -403,14 +403,15 @@ export default function DonorForm({
       clearTimeout(timeoutId);
 
       const data = await res.json();
-      if (data.is_food === true && (data.confidence ?? 0) >= 60) {
+      if (res.ok && data.is_food === true && (data.confidence ?? 0) >= 60) {
         setAiState({ 
           status: 'VERIFIED', 
           confidence: data.confidence, 
           reason: data.reason,
           is_bulk: data.is_bulk !== undefined ? data.is_bulk : true,
           quantity_level: data.quantity_level || (data.is_bulk ? 'BULK_SURPLUS' : 'LOW_QUANTITY'),
-          estimated_servings_range: data.estimated_servings_range || ''
+          estimated_servings_range: data.estimated_servings_range || '',
+          verification_token: data.verification_token || ''
         });
       } else {
         setAiState({ 
@@ -419,7 +420,9 @@ export default function DonorForm({
           reason: data.reason || 'Image does not clearly show food.',
           is_bulk: false,
           quantity_level: 'LOW_QUANTITY',
-          estimated_servings_range: ''
+          estimated_servings_range: '',
+          verification_token: '',
+          retryable: Boolean(data.retryable)
         });
       }
     } catch (err) {
@@ -520,9 +523,10 @@ export default function DonorForm({
       ai_portion_reason: aiState.reason || '',
       is_live_capture: isLiveCapture,
       ai_detected_class: aiState.reason || 'AI Verified Food',
+      ai_verification_token: aiState.verification_token || '',
       trust_score: 100,
       created_at: new Date().toISOString(),
-      status: (parseInt(windowHours) === 1) ? 'DIVERTED_TO_ANIMALS' : 'AVAILABLE'
+      status: (parseInt(windowHours, 10) <= 1) ? 'DIVERTED_TO_ANIMALS' : 'AVAILABLE'
     };
 
     setPendingDonationPayload(payload);
