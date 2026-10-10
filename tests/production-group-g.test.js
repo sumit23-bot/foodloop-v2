@@ -8,6 +8,13 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test_group_g_secret_key_2026';
 
 const { app } = require('../server');
+const mongoose = require('mongoose');
+
+test.after(async () => {
+  if (mongoose.connection && mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+});
 
 test('Fix Group G: Health Check, Contact Sanitization & Global Error Handling', async (t) => {
   const adminToken = jwt.sign(

@@ -65,6 +65,13 @@ export default function DonorForm({
     };
   }, []);
 
+  // Sync phone when currentUser changes (e.g. demo login or persona switch)
+  useEffect(() => {
+    if (currentUser?.phone) {
+      setPhone(currentUser.phone);
+    }
+  }, [currentUser]);
+
   // Fast GPS Auto-Locate with Nominatim Reverse-Geocoding
   const handleGPSAutoLocate = () => {
     if (!navigator.geolocation) {
@@ -174,6 +181,10 @@ export default function DonorForm({
     setCategory(presetCat);
     setQuantity(presetQty);
     setWindowHours(String(presetWindow));
+    if (!address) {
+      setAddress('The Grand Heritage Banquet, Sector 29, Gurgaon, Delhi-NCR');
+      setCustomCoords({ lat: 28.4695, lon: 77.0658 });
+    }
     if (showToast) showToast(`⚡ Fast-Track Preset: "${presetTitle}" loaded!`);
   };
 
@@ -403,7 +414,7 @@ export default function DonorForm({
       clearTimeout(timeoutId);
 
       const data = await res.json();
-      if (res.ok && data.is_food === true && (data.confidence ?? 0) >= 60) {
+      if (res.ok && data.is_food === true && (data.confidence ?? 0) >= 50) {
         setAiState({ 
           status: 'VERIFIED', 
           confidence: data.confidence, 

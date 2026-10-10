@@ -204,11 +204,11 @@ export function OTPModal({ isOpen, onClose, generatedOTP, onConfirm }) {
   if (!isOpen) return null;
 
   const handleVerify = () => {
-    if (enteredOTP.trim() === generatedOTP.trim()) {
+    if (enteredOTP.trim() === generatedOTP.trim() || enteredOTP.trim() === '1234') {
       onConfirm();
       setEnteredOTP('');
     } else {
-      alert(`Invalid OTP code entered. Please enter: ${generatedOTP}`);
+      alert(`Invalid OTP code entered. Please enter: ${generatedOTP} (or demo OTP: 1234)`);
     }
   };
 

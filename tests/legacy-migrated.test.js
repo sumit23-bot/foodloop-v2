@@ -9,6 +9,13 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test_legacy_migrated_secret_key_2026';
 
 const { app, resolveIncidentLiability } = require('../server');
+const mongoose = require('mongoose');
+
+test.after(async () => {
+  if (mongoose.connection && mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+});
 
 test('Legacy Migrated Suite: resolveIncidentLiability business rules', async (t) => {
   await t.test('Case 1: Donor Agrees + Mild Severity -> 100% Donor, 0% Platform, No Escalation', () => {

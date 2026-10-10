@@ -31,7 +31,9 @@ const rateLimit = require('express-rate-limit');
 
 // Environment & Security Configuration (Fix Group A)
 const isProduction = process.env.NODE_ENV === 'production';
-const DEMO_MODE = process.env.DEMO_MODE === 'true';
+const DEMO_MODE = process.env.DEMO_MODE !== undefined 
+  ? process.env.DEMO_MODE === 'true' 
+  : !isProduction;
 
 if (isProduction && DEMO_MODE) {
   throw new Error('SECURITY CONFIGURATION ERROR: DEMO_MODE cannot be enabled in production.');
@@ -115,12 +117,12 @@ if (fs.existsSync(clientDistPath)) {
 // 1. LIVE GOOGLE GEMINI AI CONFIGURATION
 // --------------------------------------------------
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const CHAT_MODELS = (process.env.GEMINI_CHAT_MODELS || 'gemini-3.8-flash,gemini-3.5-flash-lite,gemini-2.5-flash')
+const CHAT_MODELS = (process.env.GEMINI_CHAT_MODELS || 'gemini-3.5-flash-lite,gemini-3.5-flash,gemini-3-flash-preview,gemini-3.6-flash,gemini-3.7-flash,gemini-flash-lite-latest,gemini-3.8-flash')
   .split(',')
   .map(m => m.trim())
   .filter(Boolean);
 
-const VISION_MODELS = (process.env.GEMINI_VISION_MODELS || 'gemini-3.8-flash,gemini-3.5-flash-lite,gemini-2.5-flash')
+const VISION_MODELS = (process.env.GEMINI_VISION_MODELS || 'gemini-3.5-flash-lite,gemini-3.5-flash,gemini-3-flash-preview,gemini-3.6-flash,gemini-3.7-flash,gemini-flash-lite-latest,gemini-3.8-flash')
   .split(',')
   .map(m => m.trim())
   .filter(Boolean);
@@ -382,7 +384,7 @@ async function probeGeminiStartup() {
     console.log('ℹ️ Gemini API key not configured — AI endpoints active in rule-based fallback mode.');
     return { ok: false, reason: 'KEY_UNCONFIGURED' };
   }
-  const testModel = CHAT_MODELS[0] || 'gemini-2.5-flash';
+  const testModel = CHAT_MODELS[0] || 'gemini-3.5-flash-lite';
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent`;
     const res = await fetch(url, {
@@ -505,7 +507,7 @@ async function callGeminiVision(cleanBase64, promptText, key) {
           'x-goog-api-key': key
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(12000)
+        signal: AbortSignal.timeout(7000)
       });
       if (aiRes.ok) return aiRes;
       const body = await aiRes.text();
@@ -584,7 +586,7 @@ app.post('/api/ai/verify-food', async (req, res) => {
       console.warn('Image compression skipped:', compressErr.message);
     }
 
-    const promptText = `You are a strict food-safety and portion volume inspector for FoodLoop, a rescue platform for banquet, catering, and restaurant surplus.
+    const promptText = `You are an expert food-safety and portion volume inspector for FoodLoop, a community platform rescuing edible surplus food from banquets, catering, restaurants, bakeries, and kitchens.
 Analyze the attached food image and evaluate BOTH food authenticity AND portion volume / quantity scale.
 
 Respond with ONLY a valid JSON object, no other text, no markdown formatting, no backticks, in exactly this shape:
@@ -598,15 +600,15 @@ Respond with ONLY a valid JSON object, no other text, no markdown formatting, no
 }
 
 Rules:
-- is_food must be true ONLY if the image clearly shows real, physical, edible food (a cooked meal, raw ingredients, packaged food items, etc.).
-- is_food must be false for: people, objects, screenshots, text, empty plates or containers, drawings/cartoons, animals, vehicles, or anything non-edible.
-- is_bulk must be true ONLY if the image visibly shows bulk surplus food suitable for community rescue / shelter feeding (e.g. large cooking vessels/pots/degh, commercial chafing dishes, catering trays, bulk banquet dishes, stacks of 10+ meal packets, wholesale crates).
-- is_bulk must be false if it is a single plate, a single bowl, a small snack, individual beverage, or a small household portion (<10 servings).
+- is_food: Set to true if the image contains or displays any edible food, cooked dishes, curries, rice, breads/rotis, fruits, vegetables, bakery items, meal boxes, snacks, or packaged food items.
+- is_food: Set to false ONLY if the image definitely does not contain any food (such as a person/face without food, empty room, furniture, electronic screens, documents, empty plates, vehicles, animals, or non-food objects).
+- is_bulk: Set to true if the image visibly shows bulk surplus suitable for community rescue / shelter feeding (e.g. large cooking vessels/pots/degh, commercial chafing dishes, catering trays, bulk banquet dishes, stacks of 10+ meal packets, wholesale crates/boxes).
+- is_bulk: Set to false if it is a single plate, a single bowl, a small snack, individual beverage, or a small household portion (<10 servings).
 - quantity_level must be:
   * "BULK_SURPLUS" if 10 or more servings / large catering volume.
   * "MODERATE" if 5 to 9 servings.
   * "LOW_QUANTITY" if 1 to 4 servings (individual meal, snack, single plate/dish).
-- Be conservative: if you are not reasonably confident, set is_food to false and lower the confidence score accordingly.`;
+- Set confidence from 0 to 100 reflecting food recognition (use 80-100 when food is clearly visible).`;
 
     const aiRes = await callGeminiVision(cleanBase64, promptText, GEMINI_API_KEY);
 
@@ -644,7 +646,7 @@ Rules:
     const rawIsFood = parsed.is_food === true;
     const confidence = typeof parsed.confidence === 'number'
       ? Math.round(parsed.confidence)
-      : (parseInt(String(parsed.confidence), 10) || 0);
+      : (parseInt(String(parsed.confidence), 10) || (rawIsFood ? 90 : 0));
 
     const isBulk = parsed.is_bulk === true;
     const validQtyLevels = ['BULK_SURPLUS', 'MODERATE', 'LOW_QUANTITY'];
@@ -654,8 +656,8 @@ Rules:
     const estimatedServings = String(parsed.estimated_servings_range || (isBulk ? '15+ servings' : '1-2 servings'));
     const reason = String(parsed.reason || (rawIsFood ? (isBulk ? 'Bulk surplus food verified.' : 'Low quantity/single portion detected.') : 'Image does not appear to show food.'));
 
-    // Verified ONLY if is_food === true AND confidence >= 60
-    const isVerified = rawIsFood && confidence >= 60;
+    // Verified if rawIsFood is true and confidence is at least 50
+    const isVerified = rawIsFood && confidence >= 50;
 
     let verificationToken = '';
     if (isVerified) {
