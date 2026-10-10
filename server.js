@@ -1463,8 +1463,19 @@ app.delete('/api/donations/purge-all', requireAuth, requireRole('ADMIN'), async 
 });
 
 // --------------------------------------------------
-// 9b. RAZORPAY MICRO-DONATION & SPONSOR-A-MEAL ENDPOINTS
+// 9b. RAZORPAY MICRO-DONATION & SPONSOR-A-MEAL ENDPOINTS (Fix Group B)
 // --------------------------------------------------
+const paymentOrderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many payment requests from this IP, please try again after 15 minutes.' }
+});
+
+// Server-side registry of issued orders (keyed by order_id)
+const serverIssuedOrders = new Map();
+
 let RazorpayClient = null;
 try {
   const Razorpay = require('razorpay');
@@ -1479,25 +1490,39 @@ try {
   console.log('ℹ️ Razorpay SDK not initialized, demo mock fallback active');
 }
 
-app.post('/api/donations/create-order', async (req, res) => {
-  const { amount, donor_name, donor_phone, donor_email } = req.body;
-  const numAmount = Number(amount) || 40;
-  const amountInPaise = Math.round(numAmount * 100);
+app.post('/api/donations/create-order', paymentOrderLimiter, async (req, res) => {
+  const { amount, donor_name, donor_phone } = req.body || {};
 
-  // If Razorpay keys and client exist, create real/test order via Razorpay API
-  if (RazorpayClient && process.env.RAZORPAY_KEY_ID) {
+  // B2: Strictly validate integer rupee amount
+  const numAmount = Number(amount);
+  if (!Number.isInteger(numAmount) || numAmount < 1 || numAmount > 500000) {
+    return res.status(400).json({ error: 'Invalid contribution amount. Must be an integer between ₹1 and ₹5,00,000.' });
+  }
+  const amountInPaise = numAmount * 100;
+
+  // Real payment mode when keys and SDK client exist
+  if (RazorpayClient && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
     try {
       const options = {
         amount: amountInPaise,
         currency: 'INR',
         receipt: `rcpt_fl_${Date.now()}`,
         notes: {
-          donor_name: donor_name || 'Anonymous Contributor',
-          donor_phone: donor_phone || '',
+          donor_name: String(donor_name || 'Anonymous Contributor').slice(0, 100),
+          donor_phone: String(donor_phone || '').slice(0, 20),
           purpose: 'FoodLoop Sponsor-A-Meal Rescue Fund'
         }
       };
       const order = await RazorpayClient.orders.create(options);
+      serverIssuedOrders.set(order.id, {
+        orderId: order.id,
+        amountInRupees: numAmount,
+        amountInPaise: order.amount,
+        donorName: donor_name || 'Contributor',
+        donorPhone: donor_phone || '',
+        isMock: false,
+        createdAt: Date.now()
+      });
       return res.json({
         order_id: order.id,
         amount: order.amount,
@@ -1505,12 +1530,30 @@ app.post('/api/donations/create-order', async (req, res) => {
         key_id: process.env.RAZORPAY_KEY_ID
       });
     } catch (err) {
-      console.warn('Razorpay order creation fallback:', err.message);
+      console.warn('Razorpay order creation error:', err.message);
+      // In production or when DEMO_MODE is not enabled, fail safely
+      if (!DEMO_MODE || isProduction) {
+        return res.status(502).json({ error: 'Payment gateway error. Unable to create order.' });
+      }
     }
   }
 
-  // Fallback for demo / test when keys are not configured
-  const mockOrderId = `order_mock_${Date.now()}`;
+  // Fallback ONLY allowed when DEMO_MODE is enabled and non-production
+  if (!DEMO_MODE || isProduction) {
+    return res.status(503).json({ error: 'Payment gateway is not configured on this server.' });
+  }
+
+  const mockOrderId = `order_mock_${crypto.randomUUID()}`;
+  serverIssuedOrders.set(mockOrderId, {
+    orderId: mockOrderId,
+    amountInRupees: numAmount,
+    amountInPaise: amountInPaise,
+    donorName: donor_name || 'Contributor',
+    donorPhone: donor_phone || '',
+    isMock: true,
+    createdAt: Date.now()
+  });
+
   return res.json({
     order_id: mockOrderId,
     amount: amountInPaise,
@@ -1525,39 +1568,63 @@ app.post('/api/donations/verify-payment', async (req, res) => {
     razorpay_order_id, 
     razorpay_payment_id, 
     razorpay_signature, 
-    donor_name, 
-    donor_phone, 
-    amount 
-  } = req.body;
+    donor_name 
+  } = req.body || {};
 
-  // If mock order / demo mode
-  if (!razorpay_order_id || String(razorpay_order_id).startsWith('order_mock_') || !process.env.RAZORPAY_KEY_SECRET) {
-    const paymentId = razorpay_payment_id || `pay_mock_${Date.now()}`;
+  if (!razorpay_order_id) {
+    return res.status(400).json({ error: 'razorpay_order_id is required.' });
+  }
+
+  // Look up order in server-issued orders
+  const recordedOrder = serverIssuedOrders.get(razorpay_order_id);
+  if (!recordedOrder) {
+    return res.status(400).json({ error: 'Invalid or unknown order ID.' });
+  }
+
+  // B1: Mock payment verification ONLY when DEMO_MODE=true and order was server-issued mock
+  if (recordedOrder.isMock) {
+    if (!DEMO_MODE || isProduction) {
+      return res.status(403).json({ error: 'Mock payments are disabled in this environment.' });
+    }
+    const paymentId = razorpay_payment_id || `pay_mock_${crypto.randomUUID()}`;
     return res.json({
       success: true,
       verified: true,
       payment_id: paymentId,
-      amount: amount || 40,
-      donor_name: donor_name || 'Contributor',
+      order_id: razorpay_order_id,
+      amount: recordedOrder.amountInRupees,
+      donor_name: donor_name || recordedOrder.donorName || 'Contributor',
       message: 'Payment recorded (Demo Mode)'
     });
   }
 
-  // Real order: verify HMAC-SHA256 signature using crypto
+  // Real order verification
+  if (!razorpay_payment_id || !razorpay_signature) {
+    return res.status(400).json({ error: 'razorpay_payment_id and razorpay_signature are required.' });
+  }
+
+  if (!process.env.RAZORPAY_KEY_SECRET) {
+    return res.status(500).json({ error: 'Server configuration error: payment secret is missing.' });
+  }
+
   try {
     const generatedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex');
 
-    if (generatedSignature === razorpay_signature) {
+    // Secure timingSafeEqual comparison on equal length buffers
+    const sigBuf = Buffer.from(String(razorpay_signature), 'utf8');
+    const genBuf = Buffer.from(generatedSignature, 'utf8');
+
+    if (sigBuf.length === genBuf.length && crypto.timingSafeEqual(sigBuf, genBuf)) {
       return res.json({
         success: true,
         verified: true,
         payment_id: razorpay_payment_id,
         order_id: razorpay_order_id,
-        amount: amount || 40,
-        donor_name: donor_name || 'Contributor'
+        amount: recordedOrder.amountInRupees,
+        donor_name: donor_name || recordedOrder.donorName || 'Contributor'
       });
     } else {
       return res.status(400).json({ error: 'Payment verification failed: Signature mismatch.' });
