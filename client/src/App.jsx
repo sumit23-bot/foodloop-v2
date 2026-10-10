@@ -245,6 +245,8 @@ export default function App() {
           darpan_id: currentUser?.ngo_darpan_id || currentUser?.darpan_id || '',
           reason: report.reason,
           evidence_image: report.evidencePhoto,
+          coords: report.reportedCoords,
+          reporter_coords: report.reportedCoords,
           reporter_distance_km: distanceKm
         })
       });

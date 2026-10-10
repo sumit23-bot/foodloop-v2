@@ -277,18 +277,23 @@ let memoryContacts = [];
 let memoryBlacklist = new Set();
 let memoryIncidents = [];
 
-// Pure function: Food-Safety Incident Liability Resolution (Task 10)
+// Pure function: Food-Safety Incident Liability Resolution (Fix Group D5)
 function resolveIncidentLiability(incident, verifiedBillAmount, donorAgreedToPay) {
-  const bill = Math.max(0, Number(verifiedBillAmount) || 0);
+  let bill = Number(verifiedBillAmount);
+  if (!Number.isFinite(bill) || bill < 0) bill = 0;
+  if (bill > 10000000) bill = 10000000; // Cap at ₹1 Crore statutory upper bound
+
   const severity = incident?.severity || '';
   const isSevereOrLifeRisk = 
     severity === 'Severe (hospitalization required)' || 
     severity === 'Life-threatening (ICU / death)';
 
+  const agreed = donorAgreedToPay === true || donorAgreedToPay === 'true';
+
   // If donor agreed to pay AND it's NOT a Severe/Life-threatening incident:
-  if (donorAgreedToPay === true && !isSevereOrLifeRisk) {
+  if (agreed && !isSevereOrLifeRisk) {
     return {
-      donorOwes: bill,
+      donorOwes: Math.round(bill * 100) / 100,
       platformContribution: 0,
       legalEscalation: false,
       legalBasis: []
@@ -296,9 +301,12 @@ function resolveIncidentLiability(incident, verifiedBillAmount, donorAgreedToPay
   }
 
   // Otherwise (donor refused OR severity is Severe / Life-threatening):
+  const donorOwes = Math.round(bill * 0.8 * 100) / 100;
+  const platformContribution = Math.round((bill - donorOwes) * 100) / 100;
+
   return {
-    donorOwes: Math.round(bill * 0.8 * 100) / 100,
-    platformContribution: Math.round(bill * 0.2 * 100) / 100,
+    donorOwes,
+    platformContribution,
     legalEscalation: true,
     legalBasis: ['BNS Section 274', 'BNS Section 275', 'FSSA Section 59']
   };
@@ -781,7 +789,8 @@ app.post('/api/auth/demo-login', (req, res) => {
     return res.status(404).json({ error: 'Demo mode is disabled.' });
   }
   const { persona } = req.body || {};
-  const personaData = DEMO_PERSONAS[persona];
+  const personaKey = String(persona || '').toUpperCase();
+  const personaData = DEMO_PERSONAS[persona] || DEMO_PERSONAS[personaKey];
   if (!personaData) {
     return res.status(400).json({ error: 'Invalid demo persona. Choose from: DONOR, NGO, ANIMAL, ADMIN.' });
   }
@@ -1313,64 +1322,139 @@ app.patch('/api/donations/:id/claim', requireAuth, async (req, res) => {
 
 
 // --------------------------------------------------
-// 8. PROOF-OF-GROUND DISPUTE & REPORT CONTROLLER
+// 8. PROOF-OF-GROUND DISPUTE & REPORT CONTROLLER (Fix Group D)
 // --------------------------------------------------
+function calculateHaversineDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+// D1, D2, D3: Geofenced Proof-of-Ground Dispute Engine with Server-Side Haversine & Multi-Sig
 app.post('/api/donations/:id/report-fake', donationSubmissionLimiter, requireAuth, async (req, res) => {
   if (req.user?.is_blacklisted || memoryBlacklist.has(req.user?.phone)) {
     return res.status(403).json({ error: 'Your account is blacklisted.' });
   }
 
-  const { reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km } = req.body;
-
-  if (reporter_distance_km > 0.3) {
-    return res.status(400).json({ 
-      error: `Geofence Violation: You are ${(reporter_distance_km * 1000).toFixed(0)}m away. You must be physically present at the pickup site (within 300m) to file a dispute report.` 
-    });
+  // D3: Only verified NGO/SHELTER accounts can report
+  if (!['NGO', 'SHELTER', 'ANIMAL_SHELTER'].includes(req.user?.role)) {
+    return res.status(403).json({ error: 'Forbidden: Only verified NGO and shelter coordinators can file dispute strikes.' });
   }
 
-  if (!evidence_image || evidence_image.length < 50) {
+  const { reason, evidence_image } = req.body || {};
+
+  // D1: Server-computed Haversine Geofence verification
+  const reporterCoords = req.body.coords || req.body.reporter_coords || req.body.reportedCoords;
+  if (!reporterCoords || typeof reporterCoords.lat !== 'number' || typeof reporterCoords.lon !== 'number') {
+    return res.status(400).json({ error: 'Live physical GPS coordinates from reporter are mandatory.' });
+  }
+
+  if (reporterCoords.lat < -90 || reporterCoords.lat > 90 || reporterCoords.lon < -180 || reporterCoords.lon > 180) {
+    return res.status(400).json({ error: 'Invalid reporter GPS coordinates range.' });
+  }
+
+  if (!evidence_image || typeof evidence_image !== 'string' || evidence_image.length < 50) {
     return res.status(400).json({ error: 'Photographic proof is mandatory.' });
   }
 
+  if (evidence_image.length > 10 * 1024 * 1024) {
+    return res.status(400).json({ error: 'Evidence image exceeds 10MB limit.' });
+  }
+
+  // D2: Use findDonation helper to prevent CastError in memory mode
+  const donation = await findDonation(req.params.id);
+  if (!donation) {
+    return res.status(404).json({ error: 'Donation listing not found.' });
+  }
+
+  const listingLat = donation.coords?.lat ?? 28.6139;
+  const listingLon = donation.coords?.lon ?? 77.2090;
+  const distanceKm = calculateHaversineDistanceKm(reporterCoords.lat, reporterCoords.lon, listingLat, listingLon);
+
+  if (distanceKm > 0.3) {
+    return res.status(400).json({ 
+      error: `Geofence Violation: You are ${(distanceKm * 1000).toFixed(0)}m away. You must be physically present at the pickup site (within 300m) to file a dispute report.` 
+    });
+  }
+
+  // D3: Reporter identity MUST come from authenticated user
+  const reporterName = req.user.name || 'Verified Coordinator';
+  const reporterPhone = req.user.phone || '';
+  const reporterDarpan = req.user.ngo_darpan_id || req.user.darpan_id || '';
+  const reporterOrg = req.user.org_name || req.user.organization || reporterName;
+
+  const logs = donation.dispute_logs || [];
+
+  // D3: Duplicate check by distinct organization / Darpan ID
+  const alreadyReported = logs.some(log => 
+    (reporterDarpan && log.darpan_id === reporterDarpan) ||
+    (reporterPhone && log.reporter_phone === reporterPhone) ||
+    (reporterOrg && log.reported_by_org === reporterOrg)
+  );
+
+  if (alreadyReported) {
+    return res.status(400).json({ error: 'Your organization has already filed a strike for this listing.' });
+  }
+
+  const newLogEntry = {
+    reported_by: reporterName,
+    reported_by_org: reporterOrg,
+    reporter_phone: reporterPhone,
+    darpan_id: reporterDarpan,
+    reason: String(reason || 'Spoiled / Fake food listing').trim().slice(0, 500),
+    evidence_image: evidence_image.slice(0, 500), // Cap logged image snippet length
+    reporter_distance_km: Math.round(distanceKm * 1000) / 1000,
+    timestamp: new Date()
+  };
+
+  logs.push(newLogEntry);
+  donation.dispute_logs = logs;
+
+  // D3: Multi-signature consensus - count distinct verified NGO Darpan/Phone identities
+  const distinctReporters = new Set(
+    logs.map(l => l.darpan_id || l.reporter_phone || l.reported_by_org).filter(Boolean)
+  );
+
+  const isBanned = distinctReporters.size >= 2;
+  const donorPhone = donation.phone;
+
   try {
-    let donation = await Donation.findById(req.params.id);
-    if (!donation) {
-      let memItem = memoryDonations.find(d => String(d.id) === String(req.params.id) || String(d._id) === String(req.params.id));
-      if (memItem) {
-        if (!memItem.dispute_logs) memItem.dispute_logs = [];
-        memItem.dispute_logs.push({ reported_by: reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km, timestamp: new Date() });
-        if (memItem.dispute_logs.length >= 2) {
-          memItem.status = 'FLAGGED_FAKE';
-          memoryBlacklist.add(memItem.phone);
-          return res.json({ status: 'BANNED', message: 'Donor suspended after multi-signature consensus.' });
-        } else {
-          memItem.status = 'DISPUTED_REVIEW';
-          return res.json({ status: 'UNDER_REVIEW', message: 'First strike logged with proof. Post moved to Under Review.' });
-        }
-      }
-      return res.status(404).json({ error: 'Listing not found.' });
-    }
-
-    const alreadyReported = donation.dispute_logs.some(log => log.darpan_id === darpan_id || log.reporter_phone === reporter_phone);
-    if (alreadyReported) {
-      return res.status(400).json({ error: 'Your organization has already filed a strike for this listing.' });
-    }
-
-    donation.dispute_logs.push({ reported_by: reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km, timestamp: new Date() });
-
-    if (donation.dispute_logs.length >= 2) {
+    if (isBanned) {
       donation.status = 'FLAGGED_FAKE';
-      await User.findOneAndUpdate({ phone: donation.phone }, { is_blacklisted: true, trust_score: 0 });
-      memoryBlacklist.add(donation.phone);
-      await donation.save();
-      return res.json({ status: 'BANNED', message: '🚨 2nd Verified NGO strike confirmed. Donor permanently blacklisted.' });
+      donation.trust_score = 0;
+      if (donorPhone) {
+        memoryBlacklist.add(donorPhone);
+        if (isDbConnected()) {
+          await User.findOneAndUpdate({ phone: donorPhone }, { is_blacklisted: true, trust_score: 0 });
+        }
+        memoryUsers.forEach(u => {
+          if (u.phone === donorPhone) {
+            u.is_blacklisted = true;
+            u.trust_score = 0;
+          }
+        });
+      }
     } else {
       donation.status = 'DISPUTED_REVIEW';
       donation.trust_score = 45;
+    }
+
+    if (donation.save) {
       await donation.save();
+    }
+
+    if (isBanned) {
+      return res.json({ status: 'BANNED', message: '🚨 2nd Verified NGO strike confirmed. Donor permanently blacklisted.' });
+    } else {
       return res.json({ status: 'UNDER_REVIEW', message: '⚠️ 1st Strike logged with Geotagged Proof. Listing flagged as Under Review.' });
     }
   } catch (err) {
+    console.error('Moderation error:', err);
     return res.status(500).json({ error: 'Internal moderation error.' });
   }
 });
@@ -1380,7 +1464,7 @@ app.post('/api/donations/:id/report-fake', donationSubmissionLimiter, requireAut
 // 7b. FOOD-SAFETY INCIDENT MANAGEMENT & LIABILITY CONTROLLER (Task 10)
 // --------------------------------------------------
 
-// 1. Submit Food-Safety Incident Report (NGO Claimant)
+// 1. Submit Food-Safety Incident Report (NGO Claimant) (Fix Group D4)
 app.post('/api/incidents', requireAuth, async (req, res) => {
   if (req.user?.is_blacklisted || memoryBlacklist.has(req.user?.phone)) {
     return res.status(403).json({ error: 'Your account is blacklisted.' });
@@ -1392,19 +1476,38 @@ app.post('/api/incidents', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'listingId, description, and severity are required.' });
   }
 
-  // Look up the listing to retrieve unalterable donor info
-  let listing = null;
-  try {
-    if (mongoose.Types.ObjectId.isValid(listingId)) {
-      listing = await Donation.findById(listingId);
-    }
-    if (!listing) {
-      listing = await Donation.findOne({ $or: [{ id: listingId }, { _id: listingId }] });
-    }
-  } catch (_) {}
+  // D4: Validate severity against defined enum
+  const VALID_SEVERITIES = [
+    'Mild (no medical attention needed)',
+    'Moderate (outpatient treatment)',
+    'Severe (hospitalization required)',
+    'Life-threatening (ICU / death)'
+  ];
+  if (!VALID_SEVERITIES.includes(String(severity).trim())) {
+    return res.status(400).json({ error: `Invalid severity level. Must be one of: ${VALID_SEVERITIES.join(', ')}` });
+  }
 
+  // Look up listing to verify unalterable donor info and claimant authorization
+  const listing = await findDonation(listingId);
   if (!listing) {
-    listing = memoryDonations.find(d => String(d.id) === String(listingId) || String(d._id) === String(listingId));
+    return res.status(404).json({ error: 'Donation listing not found.' });
+  }
+
+  // D4: Ensure reporter is the claimant of this listing (or Admin)
+  const callerOrg = (req.user?.org_name || req.user?.organization || req.user?.name || '').toLowerCase();
+  const callerPhone = req.user?.phone || '';
+  const claimedBy = (listing.claimed_by_ngo || listing.claimed_by || '').toLowerCase();
+  const claimantPhone = listing.claimant_phone || '';
+
+  const isClaimant = req.user?.role === 'ADMIN' || (
+    (listing.status === 'CLAIMED' || listing.status === 'DELIVERED') && (
+      (claimedBy && (claimedBy === callerOrg || callerOrg.includes(claimedBy) || claimedBy.includes(callerOrg))) ||
+      (claimantPhone && claimantPhone === callerPhone)
+    )
+  );
+
+  if (!isClaimant) {
+    return res.status(403).json({ error: 'Forbidden: Only the verified claiming organization of this listing can submit food-safety incidents.' });
   }
 
   const listingTitle = listing?.title || 'Surplus Food Donation';
@@ -1412,12 +1515,14 @@ app.post('/api/incidents', requireAuth, async (req, res) => {
   const donorName = listing?.donor_name || 'Registered Food Donor';
   const donorPhone = listing?.phone || '';
 
-  const reporterName = req.user?.name || req.body.reporter_name || 'Verified NGO Partner';
-  const reporterPhone = req.user?.phone || req.body.reporter_phone || '';
+  const reporterName = req.user?.name || 'Verified NGO Partner';
+  const reporterPhone = req.user?.phone || '';
   const reporterOrg = req.user?.org_name || req.user?.organization || 'Claiming NGO Partner';
 
+  const incidentId = 'inc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
   const incidentData = {
-    id: 'inc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    id: incidentId,
     listing_id: String(listingId),
     listingId: String(listingId),
     listing_title: listingTitle,
@@ -1436,7 +1541,7 @@ app.post('/api/incidents', requireAuth, async (req, res) => {
     reporterPhone: reporterPhone,
     reporter_org: reporterOrg,
     reporterOrg: reporterOrg,
-    description: String(description).trim(),
+    description: String(description).trim().slice(0, 2000),
     severity: String(severity).trim(),
     documents: Array.isArray(documents) ? documents : [],
     status: 'REPORTED',
@@ -1457,11 +1562,20 @@ app.post('/api/incidents', requireAuth, async (req, res) => {
   };
 
   try {
-    const newInc = new Incident(incidentData);
-    await newInc.save();
-    memoryIncidents.unshift(incidentData);
-    return res.status(201).json(newInc);
+    if (isDbConnected()) {
+      const newInc = new Incident(incidentData);
+      await newInc.save();
+      // D4: Do NOT duplicate into memoryIncidents when DB save succeeded!
+      return res.status(201).json(newInc);
+    } else {
+      memoryIncidents.unshift(incidentData);
+      return res.status(201).json(incidentData);
+    }
   } catch (err) {
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error('Incident save error, failover to memory:', err);
     memoryIncidents.unshift(incidentData);
     return res.status(201).json(incidentData);
   }
@@ -1526,14 +1640,16 @@ app.patch('/api/incidents/:id', requireAuth, requireRole('ADMIN'), async (req, r
   const incidentId = req.params.id;
 
   let inc = null;
-  try {
-    if (mongoose.Types.ObjectId.isValid(incidentId)) {
-      inc = await Incident.findById(incidentId);
-    }
-    if (!inc) {
-      inc = await Incident.findOne({ $or: [{ id: incidentId }, { _id: incidentId }] });
-    }
-  } catch (_) {}
+  if (isDbConnected()) {
+    try {
+      if (mongoose.Types.ObjectId.isValid(incidentId)) {
+        inc = await Incident.findById(incidentId);
+      }
+      if (!inc) {
+        inc = await Incident.findOne({ id: String(incidentId) });
+      }
+    } catch (_) {}
+  }
 
   let memInc = memoryIncidents.find(i => String(i.id) === String(incidentId) || String(i._id) === String(incidentId));
 

@@ -199,17 +199,26 @@ test('Group A: Authentication & Authorization Security', async (t) => {
     assert.equal(loginBefore.status, 200);
 
     // Create donation listing by this donor
+    const samplePng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
     const donRes = await request(app)
       .post('/api/donations')
       .set('Authorization', `Bearer ${blUserToken}`)
       .send({
         title: 'Fresh Veg Curry and Roti',
         quantity: '25 Servings',
+        expiry_hours: 4,
         address: 'Connaught Place, New Delhi',
+        image: samplePng,
         termsAcceptance: { version: 'v1.0', acceptedAt: new Date().toISOString() }
       });
     assert.equal(donRes.status, 201);
     const donId = donRes.body.id || donRes.body._id;
+
+    // Claim listing with NGO before reporting incident
+    const claimRes = await request(app)
+      .patch(`/api/donations/${donId}/claim`)
+      .set('Authorization', `Bearer ${ngoToken}`);
+    assert.equal(claimRes.status, 200);
 
     // Report incident against this listing
     const incRes = await request(app)
