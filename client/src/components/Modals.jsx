@@ -138,6 +138,9 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
                   placeholder="e.g. Robin Hood Army / Delhi Shelter Hub" 
                   required 
                 />
+                {role === 'NGO' && (
+                  <NgoWebCheck orgName={org} darpanId={darpanId} />
+                )}
               </div>
 
               {role === 'NGO' && (
@@ -151,7 +154,6 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
                     required 
                   />
                   <p>Verified against Govt NGO Darpan registry.</p>
-                  <NgoWebCheck orgName={org} darpanId={darpanId} />
                 </div>
               )}
             </>
