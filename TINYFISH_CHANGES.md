@@ -44,5 +44,5 @@ All TinyFish routes return HTTP 200 with `{ available: false }` or empty items o
 
 ### Test Results
 - Smoke test: PASS (Search returned 10 results in 1633ms, Fetch succeeded in 1241ms).
-- Unit test suite (`npm run test:tinyfish`): 8/8 tests passed (service, circuit breaker, rate limit, sanitization, grounding gate, route validation, auth).
-- Live endpoints verification: 5/5 passed (/status 200, /news 6 articles, /ngo-check Goonj HIGH confidence, food safety chat sources grounded, general chat ungrounded).
+- Unit test suite (`npm run test:tinyfish`): 9/9 tests passed (service, circuit breaker, rate limit, sanitization, grounding gate, route validation, auth, strict NGO whole-word context matching).
+- Live endpoints verification: PASS (/status 200, /news 6 articles, /ngo-check Goonj & Robin Hood Army HIGH, xyzzz LOW, food safety chat sources grounded, general chat ungrounded).
