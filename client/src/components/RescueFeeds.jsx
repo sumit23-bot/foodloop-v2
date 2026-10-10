@@ -1,5 +1,6 @@
 import React from 'react';
 import { calculateDistance } from '../data/directory';
+import PartnerFinder from './tinyfish/PartnerFinder';
 
 const getApproxArea = (fullAddress) => {
   if (!fullAddress) return 'Delhi-NCR';
@@ -73,6 +74,10 @@ export default function RescueFeeds({
           <i className="fa-solid fa-arrows-rotate"></i>
         </button>
       </div>
+
+      {currentTab === 'ANIMAL' && currentUser && (isNGO || currentUser.role === 'ADMIN') && (
+        <PartnerFinder defaultCity={currentUser?.city || 'Delhi'} />
+      )}
 
       <div className="listing-feed feed-list-scroll" id="foodloop-feed-list" aria-live="polite">
         {filteredListings.length === 0 ? (

@@ -29,6 +29,7 @@ import {
   ShareModal,
   SponsorMealModal
 } from './components/Modals';
+import LiveNewsTicker from './components/tinyfish/LiveNewsTicker';
 
 export default function App() {
   // Navigation View: 'HOME' or 'MAP'
@@ -352,6 +353,9 @@ export default function App() {
             <LeadMagnets onAction={handleActionCard} />
             
             <HowItWorks />
+
+            {/* Live Food-Waste News Stream */}
+            <LiveNewsTicker />
 
             {/* Rescue Hub Section */}
             <section className="section hub-section" id="rescue-hub">

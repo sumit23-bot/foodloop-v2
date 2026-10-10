@@ -46,7 +46,7 @@ export default function GeminiChatWidget() {
 
       const data = await res.json();
       const reply = data.reply || data.response || 'Namaste! FoodLoop AI system is active.';
-      setMessages(prev => [...prev, { sender: 'bot', text: reply }]);
+      setMessages(prev => [...prev, { sender: 'bot', text: reply, sources: data.sources }]);
     } catch (err) {
       setMessages(prev => [...prev, {
         sender: 'bot',
@@ -144,6 +144,24 @@ export default function GeminiChatWidget() {
                 }}
               >
                 {m.text}
+                {m.sources && m.sources.length > 0 && (
+                  <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #334155', fontSize: '11px', color: '#94a3b8' }}>
+                    <span style={{ fontWeight: 600, color: '#38bdf8' }}>Sources:</span>{' '}
+                    {m.sources.map((s, sIdx) => (
+                      <span key={sIdx}>
+                        <a 
+                          href={s.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          style={{ color: '#38bdf8', textDecoration: 'underline' }}
+                        >
+                          {s.title || s.url}
+                        </a>
+                        {sIdx < m.sources.length - 1 ? ' • ' : ''}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
 

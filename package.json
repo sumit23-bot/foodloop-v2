@@ -7,9 +7,9 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "lint": "eslint server.js tests/",
     "build": "npm --prefix client run build",
-    "client": "npm --prefix client run dev"
+    "client": "npm --prefix client run dev",
+    "test:tinyfish": "node --test tests/"
   },
   "engines": {
     "node": ">=18"

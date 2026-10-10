@@ -5,6 +5,7 @@ import { VERIFIED_NGO_REGISTRY, calculateDistance } from '../data/directory';
 import { generate80GCertificate } from '../utils/certificate';
 import confetti from 'canvas-confetti';
 import { TERMS_CONTENT_V1, TERMS_VERSION } from '../data/termsContent';
+import NgoWebCheck from './tinyfish/NgoWebCheck';
 
 // ─── 1. Auth Modal ─────────────────────────────────────────────────────────────
 export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
@@ -150,6 +151,7 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
                     required 
                   />
                   <p>Verified against Govt NGO Darpan registry.</p>
+                  <NgoWebCheck orgName={org} darpanId={darpanId} />
                 </div>
               )}
             </>
