@@ -19,14 +19,25 @@ export function generate80GCertificate(donor, history = []) {
   const margin = 16;
   const contentWidth = pageWidth - (margin * 2);
 
-  // Certificate Unique Identification
-  const certNumber = `80G-FL-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
   const today = new Date();
   const dateFormatted = today.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric'
   }).replace(/ /g, '-');
+
+  // F1: Look up claiming NGO profile details from donation history
+  const latestClaimed = (history || []).find(item => item.claimed_by_ngo || item.claimed_by) || {};
+  const doneeName = latestClaimed.claimed_by_ngo || latestClaimed.claimed_by || 'Robin Hood Army (Delhi Chapter)';
+  const doneeDarpan = latestClaimed.darpan_id || 'DL/2018/0192831';
+  const doneePan = latestClaimed.pan_number || (latestClaimed.darpan_id === 'DL/2018/0192831' ? 'AAATR8821F' : '');
+  const donee80GOrder = latestClaimed.ngo_80g_order || (latestClaimed.darpan_id === 'DL/2018/0192831' ? 'ITBA/EXM/S/80G/2023-24/1058291823(1)' : '');
+  const hasValid80G = Boolean(doneePan && donee80GOrder);
+
+  // F1: Deterministic Certificate Identification (tied to primary donation ID and year)
+  const primaryDonation = (history && history.length > 0) ? history[0] : null;
+  const donIdStr = String(primaryDonation?.id || primaryDonation?._id || 'SAMPLE').slice(-8).toUpperCase();
+  const certNumber = `FL-80G-${donIdStr}-${today.getFullYear()}`;
 
   // Outer decorative border
   doc.setDrawColor(30, 41, 59); // slate-800
@@ -36,6 +47,19 @@ export function generate80GCertificate(donor, history = []) {
   doc.setDrawColor(16, 185, 129); // emerald-500 inner accent border
   doc.setLineWidth(0.3);
   doc.rect(margin - 2, margin - 2, contentWidth + 4, pageHeight - (margin * 2) + 4);
+
+  // F1: Prominent diagonal watermark across center when 80G order is not on file
+  if (!hasValid80G) {
+    try {
+      doc.setTextColor(239, 68, 68);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('DEMO / SAMPLE: NOT VALID FOR TAX DEDUCTION', pageWidth / 2, 148, {
+        align: 'center',
+        angle: 38
+      });
+    } catch (_) {}
+  }
 
   // Header Title
   let y = margin + 6;
@@ -92,19 +116,19 @@ export function generate80GCertificate(donor, history = []) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  doc.text('Robin Hood Army Food Rescue Foundation', margin + 4, boxY);
+  doc.text(doneeName, margin + 4, boxY);
 
   boxY += 4;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text('Reg. No: DL/2018/0192831 (NITI Aayog Darpan)', margin + 4, boxY);
+  doc.text(`Reg. No: ${doneeDarpan} (NITI Aayog Darpan)`, margin + 4, boxY);
   boxY += 4;
-  doc.text('80G Order: ITBA/EXM/S/80G/2023-24/1058291823(1)', margin + 4, boxY);
+  doc.text(hasValid80G ? `80G Order: ${donee80GOrder}` : '80G Order: SAMPLE DEMO (Non-Exempt)', margin + 4, boxY);
   boxY += 4;
-  doc.text('PAN of Donee: AAATR8821F', margin + 4, boxY);
+  doc.text(hasValid80G ? `PAN of Donee: ${doneePan}` : 'PAN of Donee: DEMO-SAMPLE-ONLY', margin + 4, boxY);
   boxY += 4;
-  doc.text('Validity: Permanent (CBDT Cir. No. 19/2023)', margin + 4, boxY);
+  doc.text(hasValid80G ? 'Validity: Permanent (CBDT Cir. No. 19/2023)' : 'Validity: Demonstration Sample Only', margin + 4, boxY);
 
   // Box 2: Donor Info
   const col2X = margin + colWidth + 6;
@@ -291,8 +315,8 @@ export function generate80GCertificate(donor, history = []) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(71, 85, 105);
-  doc.text('Robin Hood Army Food Rescue Trust', sigX + 5, y + 11);
-  doc.text('National Coordinator & Treasurer', sigX + 5, y + 15);
+  doc.text(doneeName, sigX + 5, y + 11);
+  doc.text('Authorized Trust Signatory', sigX + 5, y + 15);
   doc.text(`Auth Code: ${certNumber.slice(-8)}`, sigX + 5, y + 19);
   doc.setFontSize(6.5);
   doc.setTextColor(100, 116, 139);
@@ -302,9 +326,10 @@ export function generate80GCertificate(donor, history = []) {
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
+  const verifyHost = typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/verify-cert` : 'FoodLoop Verification Portal';
   doc.text(
     'Note: This is a computer-generated certificate issued in accordance with Rule 11AA of Income Tax Rules, 1962.\n' +
-    'No physical signature is required. To verify validity, visit foodloop-india.org/verify or contact info@foodloop.org.',
+    `No physical signature is required. To verify record authenticity, visit ${verifyHost}.`,
     margin,
     y + 12
   );
@@ -313,9 +338,12 @@ export function generate80GCertificate(donor, history = []) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(148, 163, 184);
-  doc.text('FoodLoop National Surplus Rescue Network · Zero Food Waste Initiative · www.foodloop.org', pageWidth / 2, pageHeight - 8, { align: 'center' });
+  doc.text('FoodLoop National Surplus Rescue Network · Zero Food Waste Initiative', pageWidth / 2, pageHeight - 8, { align: 'center' });
 
-  // Save the PDF
+  // Save the PDF if in browser environment
   const sanitizedName = (donor?.name || 'Contributor').replace(/\s+/g, '_');
-  doc.save(`FoodLoop_80G_Certificate_${sanitizedName}.pdf`);
+  if (typeof window !== 'undefined' && doc.save) {
+    doc.save(`FoodLoop_80G_Certificate_${sanitizedName}.pdf`);
+  }
+  return { doc, certNumber, hasValid80G, doneeName };
 }

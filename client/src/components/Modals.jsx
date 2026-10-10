@@ -216,10 +216,13 @@ export function OTPModal({ isOpen, onClose, generatedOTP, onConfirm }) {
     <div id="otp-modal" className="modal-overlay" style={{ display: 'flex' }}>
       <div className="otp-modal-card">
         <div className="otp-icon">📲</div>
-        <h3>Verify Phone Number</h3>
-        <p>Enter 4-digit security code sent to your mobile.</p>
+        <h3>Phone Verification</h3>
+        <p>Enter the 4-digit verification code below to publish your listing.</p>
         <div id="otp-banner">
-          Mock SMS Code: <strong id="generated-otp-display">{generatedOTP}</strong>
+          Demo Verification Code: <strong id="generated-otp-display">{generatedOTP}</strong>
+        </div>
+        <div style={{ fontSize: '11px', color: '#94a3b8', margin: '6px 0 12px', textAlign: 'center' }}>
+          (Sandbox Demo Mode — in live production, code is dispatched via transactional SMS gateway)
         </div>
         <input 
           type="text" 
