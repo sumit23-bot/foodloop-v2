@@ -38,9 +38,12 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const user = JSON.parse(localStorage.getItem('foodloop_auth_user') || 'null');
-      if (user && !localStorage.getItem('foodloop_auth_token')) {
-        const token = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(user))));
-        localStorage.setItem('foodloop_auth_token', token);
+      const token = localStorage.getItem('foodloop_auth_token');
+      // Invalidate legacy unsigned tokens
+      if (token && (token.startsWith('demo_token_') || token.startsWith('mock_'))) {
+        localStorage.removeItem('foodloop_auth_token');
+        localStorage.removeItem('foodloop_auth_user');
+        return null;
       }
       return user;
     } catch (_) {
@@ -48,11 +51,11 @@ export default function App() {
     }
   });
 
-  const getAuthToken = (user = currentUser) => {
-    let token = localStorage.getItem('foodloop_auth_token');
-    if (!token && user) {
-      token = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(user))));
-      localStorage.setItem('foodloop_auth_token', token);
+  const getAuthToken = () => {
+    const token = localStorage.getItem('foodloop_auth_token');
+    if (token && (token.startsWith('demo_token_') || token.startsWith('mock_'))) {
+      localStorage.removeItem('foodloop_auth_token');
+      return null;
     }
     return token;
   };
@@ -254,66 +257,47 @@ export default function App() {
     }
   };
 
-  // 5. Demo Persona Switcher
-  const handleSelectPersona = (persona) => {
-    if (persona === 'DONOR') {
-      const demoDonor = {
-        name: 'The Grand Heritage Banquet',
-        organization: 'The Grand Heritage Banquet',
-        role: 'DONOR',
-        phone: '9876543210'
-      };
-      const demoToken = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(demoDonor))));
-      setCurrentUser(demoDonor);
-      localStorage.setItem('foodloop_auth_user', JSON.stringify(demoDonor));
-      localStorage.setItem('foodloop_auth_token', demoToken);
-      showToast('⚡ Switched to Demo Persona: 🍛 Food Donor');
-    } else if (persona === 'NGO') {
-      const demoNGO = {
-        name: 'Robin Hood Army Coordinator',
-        organization: 'Robin Hood Army (Delhi Chapter)',
-        role: 'NGO',
-        darpan_id: 'DL/2018/0192831',
-        phone: '8800247247'
-      };
-      const demoToken = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(demoNGO))));
-      setCurrentUser(demoNGO);
-      localStorage.setItem('foodloop_auth_user', JSON.stringify(demoNGO));
-      localStorage.setItem('foodloop_auth_token', demoToken);
-      showToast('⚡ Switched to Demo Persona: 🏛️ Verified NGO');
-    } else if (persona === 'ANIMAL') {
-      const demoAnimal = {
-        name: 'Delhi Gaushala Rescue',
-        organization: 'Delhi Gaushala & Stray Care Trust',
-        role: 'ANIMAL_SHELTER',
-        darpan_id: 'DL/AWBI/2019/081',
-        phone: '9855566778'
-      };
-      const demoToken = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(demoAnimal))));
-      setCurrentUser(demoAnimal);
-      localStorage.setItem('foodloop_auth_user', JSON.stringify(demoAnimal));
-      localStorage.setItem('foodloop_auth_token', demoToken);
-      showToast('⚡ Switched to Demo Persona: 🐾 Animal Shelter');
-    } else if (persona === 'ADMIN') {
-      const demoAdmin = {
-        name: 'FoodLoop Safety Admin',
-        organization: 'FoodLoop Legal & Compliance Cell',
-        role: 'ADMIN',
-        phone: '9999900000'
-      };
-      const demoToken = 'demo_token_' + btoa(unescape(encodeURIComponent(JSON.stringify(demoAdmin))));
-      setCurrentUser(demoAdmin);
-      localStorage.setItem('foodloop_auth_user', JSON.stringify(demoAdmin));
-      localStorage.setItem('foodloop_auth_token', demoToken);
-      setIsAdminModalOpen(true);
-      showToast('⚡ Switched to Demo Persona: ⚖️ Food Safety Admin');
-    } else {
+  // 5. Demo Persona Switcher (A1)
+  const handleSelectPersona = async (persona) => {
+    if (persona === 'GUEST' || !persona) {
       setCurrentUser(null);
       localStorage.removeItem('foodloop_auth_user');
       localStorage.removeItem('foodloop_auth_token');
       showToast('⚡ Switched to Demo Persona: 👤 Visitor (Logged Out)');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/demo-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ persona })
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        setCurrentUser(data);
+        localStorage.setItem('foodloop_auth_user', JSON.stringify(data));
+        localStorage.setItem('foodloop_auth_token', data.token);
+
+        const personaLabels = {
+          DONOR: '🍛 Food Donor',
+          NGO: '🏛️ Verified NGO',
+          ANIMAL: '🐾 Animal Shelter',
+          ADMIN: '⚖️ Food Safety Admin'
+        };
+        showToast(`⚡ Switched to Demo Persona: ${personaLabels[persona] || persona}`);
+
+        if (persona === 'ADMIN') {
+          setIsAdminModalOpen(true);
+        }
+      } else {
+        alert(data.error || 'Failed to switch demo persona (Demo mode might be disabled).');
+      }
+    } catch (_err) {
+      alert('Could not connect to server for demo persona login.');
     }
   };
+
 
   // 6. Action Cards Router
   const handleActionCard = (type) => {

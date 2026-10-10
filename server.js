@@ -19,6 +19,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
@@ -28,9 +29,36 @@ const sharp = require('sharp');
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'foodloop_secret_key_2026';
+// Environment & Security Configuration (Fix Group A)
+const isProduction = process.env.NODE_ENV === 'production';
+const DEMO_MODE = process.env.DEMO_MODE === 'true';
+
+if (isProduction && DEMO_MODE) {
+  throw new Error('SECURITY CONFIGURATION ERROR: DEMO_MODE cannot be enabled in production.');
+}
+
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (isProduction) {
+    throw new Error('CRITICAL SECURITY ERROR: JWT_SECRET must be configured in production.');
+  }
+  JWT_SECRET = crypto.randomBytes(32).toString('hex');
+  console.warn('⚠️ WARNING: JWT_SECRET not configured. Generated ephemeral random secret for development/demo.');
+}
 
 const app = express();
+
+// Security Headers via Helmet
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+
+// Configure trust proxy correctly if set
+if (process.env.TRUST_PROXY) {
+  const tp = process.env.TRUST_PROXY;
+  app.set('trust proxy', tp === 'true' ? 1 : (isNaN(Number(tp)) ? tp : Number(tp)));
+}
 
 // Rate Limiting Configuration
 const apiLimiter = rateLimit({
@@ -59,7 +87,19 @@ const validateRequest = (req, res, next) => {
 };
 
 // Middleware Configuration
-app.use(cors());
+const configuredOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+  : ['http://localhost:5173', 'http://localhost:5000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5000'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || configuredOrigins.includes('*') || configuredOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Blocked by CORS policy'));
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -119,20 +159,38 @@ Answer accurately and clearly based on these rules.
 // --------------------------------------------------
 // 2. MONGOOSE DATABASE CONNECTION
 // --------------------------------------------------
+mongoose.set('bufferCommands', false);
+
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/foodloop';
 
-mongoose.connect(MONGO_URI)
-  .then(() => console.log('✅ Connected to Local MongoDB Database!'))
-  .catch((err) => console.log('⚠️ MongoDB offline, operating in Memory Cache Mode.'));
+mongoose.connect(MONGO_URI, {
+  serverSelectionTimeoutMS: 2000,
+  connectTimeoutMS: 2000
+})
+  .then(() => console.log('✅ Connected to MongoDB Database!'))
+  .catch((_err) => console.log('⚠️ MongoDB offline, operating in Memory Cache Mode.'));
+
+mongoose.connection.on('disconnected', () => {
+  console.log('⚠️ MongoDB disconnected, failover to Memory Cache Mode.');
+});
+mongoose.connection.on('reconnected', () => {
+  console.log('✅ MongoDB reconnected successfully.');
+});
+
+function isDbConnected() {
+  return Boolean(mongoose.connection && mongoose.connection.readyState === 1);
+}
 
 // User & NGO Registry Schema
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   phone: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['DONOR', 'NGO', 'SHELTER', 'VOLUNTEER', 'ANIMAL_SHELTER'], default: 'DONOR' },
+  role: { type: String, enum: ['DONOR', 'NGO', 'SHELTER', 'VOLUNTEER', 'ANIMAL_SHELTER', 'ADMIN'], default: 'DONOR' },
   org_name: { type: String, default: '' },
   ngo_darpan_id: { type: String, default: '' },
+  pan_number: { type: String, default: '' },
+  ngo_80g_order: { type: String, default: '' },
   is_verified: { type: Boolean, default: true },
   trust_score: { type: Number, default: 100 },
   false_report_strikes: { type: Number, default: 0 },
@@ -608,15 +666,66 @@ app.post('/api/donations/verify-web-duplicate', async (req, res) => {
 // --------------------------------------------------
 // 6. AUTHENTICATION & NITI AAYOG DARPAN ID RBAC
 // --------------------------------------------------
+const DEMO_PERSONAS = {
+  DONOR: {
+    id: 'demo_donor_1',
+    name: 'The Grand Heritage Banquet',
+    organization: 'The Grand Heritage Banquet',
+    org_name: 'The Grand Heritage Banquet',
+    role: 'DONOR',
+    phone: '9876543210',
+    is_verified: true,
+    trust_score: 100
+  },
+  NGO: {
+    id: 'demo_ngo_1',
+    name: 'Robin Hood Army Coordinator',
+    organization: 'Robin Hood Army (Delhi Chapter)',
+    org_name: 'Robin Hood Army (Delhi Chapter)',
+    role: 'NGO',
+    ngo_darpan_id: 'DL/2018/0192831',
+    phone: '8800247247',
+    is_verified: true,
+    trust_score: 100,
+    pan_number: 'AAATR8821F',
+    ngo_80g_order: 'ITBA/EXM/S/80G/2023-24/1058291823(1)'
+  },
+  ANIMAL: {
+    id: 'demo_animal_1',
+    name: 'Delhi Gaushala Rescue',
+    organization: 'Delhi Gaushala & Stray Care Trust',
+    org_name: 'Delhi Gaushala & Stray Care Trust',
+    role: 'ANIMAL_SHELTER',
+    ngo_darpan_id: 'DL/AWBI/2019/081',
+    phone: '9855566778',
+    is_verified: true,
+    trust_score: 100
+  },
+  ADMIN: {
+    id: 'demo_admin_1',
+    name: 'FoodLoop Safety Admin',
+    organization: 'FoodLoop Legal & Compliance Cell',
+    org_name: 'FoodLoop Legal & Compliance Cell',
+    role: 'ADMIN',
+    phone: '9999900000',
+    is_verified: true,
+    trust_score: 100
+  }
+};
+
 function generateToken(user) {
   return jwt.sign(
     {
-      id: user._id ? user._id.toString() : user.id,
+      id: user._id ? user._id.toString() : (user.id || ''),
       phone: user.phone,
       role: user.role,
-      org_name: user.org_name,
+      org_name: user.org_name || user.organization || '',
+      organization: user.organization || user.org_name || '',
       name: user.name,
-      ngo_darpan_id: user.ngo_darpan_id
+      ngo_darpan_id: user.ngo_darpan_id || user.darpan_id || '',
+      pan_number: user.pan_number || '',
+      ngo_80g_order: user.ngo_80g_order || '',
+      is_blacklisted: Boolean(user.is_blacklisted)
     },
     JWT_SECRET,
     { expiresIn: '7d' }
@@ -626,124 +735,200 @@ function generateToken(user) {
 const requireAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    // If request contains verified claimant/NGO or donor body in demo/testing mode
-    if (req.body && (req.body.ngo_name || req.body.claimant_org || req.body.donor_name)) {
-      req.user = {
-        role: req.body.ngo_name || req.body.claimant_org ? 'NGO' : 'DONOR',
-        name: req.body.ngo_name || req.body.claimant_org || req.body.donor_name,
-        org_name: req.body.ngo_name || req.body.claimant_org || req.body.donor_name,
-        ngo_darpan_id: req.body.darpan_id || ''
-      };
-      return next();
-    }
     return res.status(401).json({ error: 'Authentication required. No token provided.' });
   }
 
   const token = authHeader.split(' ')[1];
-
-  // Seamless support for demo persona and testing tokens
-  if (token && (token.startsWith('demo_token_') || token.startsWith('mock_') || token === 'mock_token')) {
-    try {
-      const base64Data = token.replace(/^demo_token_/, '');
-      const userPayload = JSON.parse(Buffer.from(base64Data, 'base64').toString('utf8'));
-      req.user = userPayload;
-    } catch (_) {
-      req.user = {
-        role: req.body?.ngo_name || req.body?.claimant_org ? 'NGO' : 'DONOR',
-        name: req.body?.ngo_name || req.body?.claimant_org || 'Verified NGO Coordinator',
-        org_name: req.body?.ngo_name || req.body?.claimant_org || 'Robin Hood Army (Delhi Chapter)',
-        ngo_darpan_id: req.body?.darpan_id || 'DL/2018/0192831'
-      };
-    }
-    return next();
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication token is empty.' });
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.phone && (memoryBlacklist.has(decoded.phone) || decoded.is_blacklisted)) {
+      return res.status(403).json({ error: 'Account is blacklisted due to verified violations.' });
+    }
     req.user = decoded;
     next();
-  } catch (err) {
+  } catch (_err) {
     return res.status(401).json({ error: 'Invalid or expired authentication token.' });
   }
 };
 
+const requireRole = (...roles) => (req, res, next) => {
+  if (!req.user || !roles.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Forbidden: Insufficient permissions for this action.' });
+  }
+  next();
+};
+
+app.post('/api/auth/demo-login', (req, res) => {
+  if (!DEMO_MODE || isProduction) {
+    return res.status(404).json({ error: 'Demo mode is disabled.' });
+  }
+  const { persona } = req.body || {};
+  const personaData = DEMO_PERSONAS[persona];
+  if (!personaData) {
+    return res.status(400).json({ error: 'Invalid demo persona. Choose from: DONOR, NGO, ANIMAL, ADMIN.' });
+  }
+  const token = generateToken(personaData);
+  return res.json({ ...personaData, token });
+});
+
 app.post('/api/auth/register', [
-  body('name').trim().notEmpty().withMessage('Name is required and cannot be empty.'),
+  body('name').trim().notEmpty().withMessage('Name is required and cannot be empty.').isLength({ max: 100 }).withMessage('Name cannot exceed 100 characters.'),
   body('phone').trim().matches(/^(\+?91)?[6-9]\d{9}$/).withMessage('Valid 10-digit Indian mobile number is required.'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long.'),
   validateRequest
 ], async (req, res) => {
-  const { name, phone, role, org_name, ngo_darpan_id, password } = req.body;
+  const { name, phone, password } = req.body;
+  const rawRole = req.body.role || 'DONOR';
+  const role = String(rawRole).trim().toUpperCase();
+
+  // A2: Whitelist public registration roles - never ADMIN or VOLUNTEER via public register
+  const ALLOWED_ROLES = ['DONOR', 'NGO', 'SHELTER', 'ANIMAL_SHELTER'];
+  if (!ALLOWED_ROLES.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role for registration. Allowed roles: DONOR, NGO, SHELTER, ANIMAL_SHELTER.' });
+  }
+
+  // A3: Accept both org_name and organization, ngo_darpan_id and darpan_id
+  const orgName = (req.body.org_name || req.body.organization || name).trim();
+  const darpanId = (req.body.ngo_darpan_id || req.body.darpan_id || '').trim().toUpperCase();
+  const panNumber = (req.body.pan_number || '').trim().toUpperCase();
+  const ngo80gOrder = (req.body.ngo_80g_order || '').trim();
+
+  // A2: Validate Darpan ID for NGO/SHELTER/ANIMAL_SHELTER
+  if (['NGO', 'SHELTER', 'ANIMAL_SHELTER'].includes(role)) {
+    if (!darpanId) {
+      return res.status(400).json({ error: 'Darpan ID / AWBI registration is required for NGO and shelter registrations.' });
+    }
+    const darpanRegex = /^[A-Z]{2}\/(\d{4}|AWBI\/\d{4})\/\d{3,8}$/i;
+    if (!darpanRegex.test(darpanId)) {
+      return res.status(400).json({ error: 'Invalid Darpan ID format. Example: DL/2018/0192831 or DL/AWBI/2019/081' });
+    }
+  }
+
+  // Normalize phone to clean 10-digit Indian number
+  const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+
+  if (memoryBlacklist.has(cleanPhone)) {
+    return res.status(403).json({ error: 'This phone number has been permanently blacklisted.' });
+  }
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    let existing = await User.findOne({ phone });
-    if (existing) return res.status(400).json({ error: 'Phone already registered.' });
 
-    const newUser = new User({ 
-      name, 
-      phone, 
-      password: hashedPassword,
-      role, 
-      org_name: org_name || name, 
-      ngo_darpan_id: ngo_darpan_id || '', 
-      is_verified: true 
-    });
-    await newUser.save();
+    if (isDbConnected()) {
+      const existing = await User.findOne({ phone: cleanPhone });
+      if (existing) {
+        return res.status(400).json({ error: 'Phone number is already registered.' });
+      }
 
-    const token = generateToken(newUser);
-    const userObj = newUser.toObject();
-    delete userObj.password;
-    return res.status(201).json({ ...userObj, token });
+      // NOTE: In hackathon/demo environment, verified upon syntax validation.
+      const isVerified = true;
+
+      const newUser = new User({
+        name: name.trim(),
+        phone: cleanPhone,
+        password: hashedPassword,
+        role,
+        org_name: orgName,
+        ngo_darpan_id: darpanId,
+        pan_number: panNumber,
+        ngo_80g_order: ngo80gOrder,
+        is_verified: isVerified
+      });
+      await newUser.save();
+
+      const token = generateToken(newUser);
+      const userObj = newUser.toObject();
+      delete userObj.password;
+      return res.status(201).json({ ...userObj, token, organization: userObj.org_name, darpan_id: userObj.ngo_darpan_id });
+    } else {
+      const existingMem = memoryUsers.find(u => u.phone === cleanPhone);
+      if (existingMem) {
+        return res.status(400).json({ error: 'Phone number is already registered.' });
+      }
+
+      const fallbackUser = {
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        phone: cleanPhone,
+        password: hashedPassword,
+        role,
+        org_name: orgName,
+        ngo_darpan_id: darpanId,
+        pan_number: panNumber,
+        ngo_80g_order: ngo80gOrder,
+        is_verified: true,
+        trust_score: 100,
+        is_blacklisted: false,
+        created_at: new Date()
+      };
+      memoryUsers.push(fallbackUser);
+      const token = generateToken(fallbackUser);
+      const { password: _, ...userSafe } = fallbackUser;
+      return res.status(201).json({ ...userSafe, token, organization: fallbackUser.org_name, darpan_id: fallbackUser.ngo_darpan_id });
+    }
   } catch (err) {
-    const hashedPassword = bcrypt.hashSync(password, 10);
-    const fallbackUser = { 
-      id: Date.now().toString(), 
-      name, 
-      phone, 
-      password: hashedPassword,
-      role, 
-      org_name: org_name || name, 
-      ngo_darpan_id: ngo_darpan_id || '', 
-      is_verified: true, 
-      trust_score: 100 
-    };
-    memoryUsers.push(fallbackUser);
-    const token = generateToken(fallbackUser);
-    const { password: _, ...userSafe } = fallbackUser;
-    return res.status(201).json({ ...userSafe, token });
+    if (err.code === 11000) {
+      return res.status(400).json({ error: 'Phone number is already registered.' });
+    }
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error('Registration error:', err);
+    return res.status(500).json({ error: 'Registration failed due to server error.' });
   }
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { phone, password } = req.body;
+  const { phone, password } = req.body || {};
   if (!phone || !password) {
     return res.status(400).json({ error: 'Phone number and password are required.' });
   }
 
-  try {
-    const user = await User.findOne({ phone });
-    if (user) {
-      const isMatch = await bcrypt.compare(password, user.password || '');
-      if (!isMatch) {
-        return res.status(401).json({ error: 'Invalid phone or password.' });
-      }
-      const token = generateToken(user);
-      const userObj = user.toObject();
-      delete userObj.password;
-      return res.json({ ...userObj, token });
-    }
-  } catch (e) {}
+  const cleanPhone = String(phone).replace(/\D/g, '').slice(-10);
 
-  const memUser = memoryUsers.find(u => u.phone === phone);
+  // A6: Check if blacklisted before processing
+  if (memoryBlacklist.has(cleanPhone)) {
+    return res.status(403).json({ error: 'This account has been permanently blacklisted due to verified violations.' });
+  }
+
+  if (isDbConnected()) {
+    try {
+      const user = await User.findOne({ phone: cleanPhone });
+      if (user) {
+        if (user.is_blacklisted) {
+          memoryBlacklist.add(cleanPhone);
+          return res.status(403).json({ error: 'This account has been permanently blacklisted due to verified violations.' });
+        }
+        const isMatch = await bcrypt.compare(password, user.password || '');
+        if (!isMatch) {
+          return res.status(401).json({ error: 'Invalid phone or password.' });
+        }
+        const token = generateToken(user);
+        const userObj = user.toObject();
+        delete userObj.password;
+        return res.json({ ...userObj, token, organization: userObj.org_name, darpan_id: userObj.ngo_darpan_id });
+      }
+    } catch (e) {
+      console.warn('DB user find error:', e.message);
+    }
+  }
+
+  const memUser = memoryUsers.find(u => u.phone === cleanPhone);
   if (memUser) {
+    if (memUser.is_blacklisted || memoryBlacklist.has(memUser.phone)) {
+      return res.status(403).json({ error: 'This account has been permanently blacklisted due to verified violations.' });
+    }
     const isMatch = await bcrypt.compare(password, memUser.password || '');
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid phone or password.' });
     }
     const token = generateToken(memUser);
     const { password: _, ...userSafe } = memUser;
-    return res.json({ ...userSafe, token });
+    return res.json({ ...userSafe, token, organization: memUser.org_name, darpan_id: memUser.ngo_darpan_id });
   }
 
   return res.status(401).json({ error: 'Invalid phone or password.' });
@@ -786,11 +971,11 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
   const donorId = req.user?.id || req.body.donor_id || '';
   const donorName = req.user?.name || req.body.donor_name || 'Anonymous Donor';
 
-  if (memoryBlacklist.has(donorPhone)) {
+  if (memoryBlacklist.has(donorPhone) || req.user?.is_blacklisted) {
     return res.status(403).json({ error: 'This phone number is permanently blacklisted due to multiple verified disputes.' });
   }
 
-  const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress || '127.0.0.1';
+  const clientIp = req.ip || req.socket?.remoteAddress || '127.0.0.1';
   const termsRecord = {
     version: String(req.body.termsAcceptance?.version || 'v1.0'),
     acceptedAt: req.body.termsAcceptance?.acceptedAt ? new Date(req.body.termsAcceptance.acceptedAt) : new Date(),
@@ -847,6 +1032,10 @@ app.post('/api/donations', donationSubmissionLimiter, requireAuth, [
 });
 
 app.patch('/api/donations/:id/claim', requireAuth, async (req, res) => {
+  if (req.user?.is_blacklisted || memoryBlacklist.has(req.user?.phone)) {
+    return res.status(403).json({ error: 'Your account is blacklisted and cannot claim donations.' });
+  }
+
   const { claimant_phone, claimant_org, ngo_name, darpan_id } = req.body || {};
   const orgName = claimant_org || ngo_name || req.user?.org_name || req.user?.organization || req.user?.name || 'Verified NGO Partner';
   const orgPhone = claimant_phone || req.user?.phone || '';
@@ -910,6 +1099,10 @@ app.patch('/api/donations/:id/claim', requireAuth, async (req, res) => {
 // 8. PROOF-OF-GROUND DISPUTE & REPORT CONTROLLER
 // --------------------------------------------------
 app.post('/api/donations/:id/report-fake', donationSubmissionLimiter, requireAuth, async (req, res) => {
+  if (req.user?.is_blacklisted || memoryBlacklist.has(req.user?.phone)) {
+    return res.status(403).json({ error: 'Your account is blacklisted.' });
+  }
+
   const { reporter_name, reporter_phone, darpan_id, reason, evidence_image, reporter_distance_km } = req.body;
 
   if (reporter_distance_km > 0.3) {
@@ -972,6 +1165,10 @@ app.post('/api/donations/:id/report-fake', donationSubmissionLimiter, requireAut
 
 // 1. Submit Food-Safety Incident Report (NGO Claimant)
 app.post('/api/incidents', requireAuth, async (req, res) => {
+  if (req.user?.is_blacklisted || memoryBlacklist.has(req.user?.phone)) {
+    return res.status(403).json({ error: 'Your account is blacklisted.' });
+  }
+
   const { listingId, reporterId, description, severity, documents } = req.body;
 
   if (!listingId || !description || !severity) {
@@ -1053,32 +1250,61 @@ app.post('/api/incidents', requireAuth, async (req, res) => {
   }
 });
 
-// 2. Fetch Incidents List (Admin & Transparency Status)
-app.get('/api/incidents', async (req, res) => {
+// 2. Fetch Incidents List (Admin & Transparency Status) - Gated by requireAuth
+app.get('/api/incidents', requireAuth, async (req, res) => {
   const { listingId, reporterId } = req.query;
-  try {
-    const filter = {};
-    if (listingId) filter.listing_id = String(listingId);
-    if (reporterId) filter.reporter_id = String(reporterId);
+  const isAdmin = req.user?.role === 'ADMIN';
 
-    const list = await Incident.find(filter).sort({ created_at: -1 });
-    if (list && list.length > 0) {
-      return res.json(list);
+  const sanitizeIncident = (inc) => {
+    const obj = inc.toObject ? inc.toObject() : { ...inc };
+    if (!isAdmin) {
+      if (obj.donor_phone) obj.donor_phone = obj.donor_phone.replace(/(\d{2})\d{5}(\d{3})/, '$1*****$2');
+      if (obj.donorPhone) obj.donorPhone = obj.donorPhone.replace(/(\d{2})\d{5}(\d{3})/, '$1*****$2');
+      if (obj.reporter_phone) obj.reporter_phone = obj.reporter_phone.replace(/(\d{2})\d{5}(\d{3})/, '$1*****$2');
+      if (obj.reporterPhone) obj.reporterPhone = obj.reporterPhone.replace(/(\d{2})\d{5}(\d{3})/, '$1*****$2');
     }
-  } catch (_) {}
+    return obj;
+  };
 
-  let memList = [...memoryIncidents];
-  if (listingId) {
-    memList = memList.filter(i => String(i.listing_id || i.listingId) === String(listingId));
+  try {
+    let list = [];
+    if (isDbConnected()) {
+      const filter = {};
+      if (listingId) filter.listing_id = String(listingId);
+      if (reporterId) filter.reporter_id = String(reporterId);
+      list = await Incident.find(filter).sort({ created_at: -1 });
+    } else {
+      let memList = [...memoryIncidents];
+      if (listingId) {
+        memList = memList.filter(i => String(i.listing_id || i.listingId) === String(listingId));
+      }
+      if (reporterId) {
+        memList = memList.filter(i => String(i.reporter_id || i.reporterId) === String(reporterId));
+      }
+      list = memList;
+    }
+
+    if (!isAdmin) {
+      const callerId = req.user?.id;
+      const callerPhone = req.user?.phone;
+      list = list.filter(i => {
+        const rId = i.reporter_id || i.reporterId;
+        const rPhone = i.reporter_phone || i.reporterPhone;
+        const dId = i.donor_id || i.donorId;
+        const dPhone = i.donor_phone || i.donorPhone;
+        return (callerId && (rId === callerId || dId === callerId)) ||
+               (callerPhone && (rPhone === callerPhone || dPhone === callerPhone));
+      });
+    }
+
+    return res.json(list.map(sanitizeIncident));
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch incidents.' });
   }
-  if (reporterId) {
-    memList = memList.filter(i => String(i.reporter_id || i.reporterId) === String(reporterId));
-  }
-  return res.json(memList);
 });
 
-// 3. Admin Review & Incident Liability Resolution
-app.patch('/api/incidents/:id', async (req, res) => {
+// 3. Admin Review & Incident Liability Resolution - Strictly Admin Only
+app.patch('/api/incidents/:id', requireAuth, requireRole('ADMIN'), async (req, res) => {
   const { status, verifiedBillAmount, donorAgreedToPay } = req.body;
   const incidentId = req.params.id;
 
@@ -1219,11 +1445,15 @@ app.get('/api/contact', requireAuth, async (req, res) => {
   }
 });
 
-// Diagnostics & Data Purge Route
-// NOTE: This is a destructive diagnostics route. In a real production deployment, it should be removed or strictly admin-gated.
-app.delete('/api/donations/purge-all', requireAuth, async (req, res) => {
+// Diagnostics & Data Purge Route (Gated to Admin + Demo Mode)
+app.delete('/api/donations/purge-all', requireAuth, requireRole('ADMIN'), async (req, res) => {
+  if (!DEMO_MODE || isProduction) {
+    return res.status(404).json({ error: 'Purge endpoint is only available in demo/development mode.' });
+  }
   try {
-    await Donation.deleteMany({});
+    if (isDbConnected()) {
+      await Donation.deleteMany({});
+    }
     memoryDonations = [];
     res.json({ message: 'Database cleared' });
   } catch {

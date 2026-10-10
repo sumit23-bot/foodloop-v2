@@ -65,21 +65,25 @@ export function AuthModal({ isOpen, onClose, onLoginSuccess, showToast }) {
       } else {
         alert(data.error || 'Authentication failed. Please verify credentials.');
       }
-    } catch (err) {
-      // Local fallback for offline mode
-      const mockUser = {
-        name: name || (role === 'NGO' ? 'NGO Coordinator' : 'Food Donor'),
-        organization: org || (role === 'NGO' ? 'Robin Hood Army' : 'Grand Banquet'),
-        role,
-        darpan_id: darpanId,
-        phone: cleanPhone
-      };
-      localStorage.setItem('foodloop_auth_user', JSON.stringify(mockUser));
-      onLoginSuccess(mockUser);
-      onClose();
-      if (showToast) showToast(`✅ Logged in as ${mockUser.name}`);
+    } catch (_err) {
+      if (import.meta.env.VITE_DEMO_MODE === 'true') {
+        const mockUser = {
+          name: name || (role === 'NGO' ? 'NGO Coordinator' : 'Food Donor'),
+          organization: org || (role === 'NGO' ? 'Robin Hood Army' : 'Grand Banquet'),
+          role,
+          darpan_id: darpanId,
+          phone: cleanPhone
+        };
+        localStorage.setItem('foodloop_auth_user', JSON.stringify(mockUser));
+        onLoginSuccess(mockUser);
+        onClose();
+        if (showToast) showToast(`✅ Logged in as ${mockUser.name} (Offline Demo Mode)`);
+      } else {
+        alert('Network error connecting to authentication service. Please check connection and try again.');
+      }
     }
   };
+
 
   return (
     <div id="auth-modal" className="modal-overlay" style={{ display: 'flex' }}>

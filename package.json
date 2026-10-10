@@ -21,9 +21,15 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "express-validator": "^7.3.2",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.4",
     "razorpay": "^2.9.8",
     "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "mongodb-memory-server": "^10.4.3",
+    "supertest": "^7.3.1"
   }
 }
