@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import TinyFishBadge from './tinyfish/TinyFishBadge';
 
 export default function GeminiChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -145,21 +146,27 @@ export default function GeminiChatWidget() {
               >
                 {m.text}
                 {m.sources && m.sources.length > 0 && (
-                  <div style={{ marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #334155', fontSize: '11px', color: '#94a3b8' }}>
-                    <span style={{ fontWeight: 600, color: '#38bdf8' }}>Sources:</span>{' '}
-                    {m.sources.map((s, sIdx) => (
-                      <span key={sIdx}>
-                        <a 
-                          href={s.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          style={{ color: '#38bdf8', textDecoration: 'underline' }}
-                        >
-                          {s.title || s.url}
-                        </a>
-                        {sIdx < m.sources.length - 1 ? ' • ' : ''}
+                  <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(56, 189, 248, 0.25)', fontSize: '11px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', gap: '6px' }}>
+                      <span style={{ fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        🌐 Verified Sources:
                       </span>
-                    ))}
+                      <TinyFishBadge />
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '16px', listStyleType: 'disc', color: '#94a3b8' }}>
+                      {m.sources.map((s, sIdx) => (
+                        <li key={sIdx} style={{ marginBottom: '4px' }}>
+                          <a 
+                            href={s.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            style={{ color: '#38bdf8', textDecoration: 'underline', wordBreak: 'break-word' }}
+                          >
+                            {s.title || s.url}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>

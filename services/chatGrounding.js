@@ -3,7 +3,7 @@
 
 const tinyfish = require('./tinyfish');
 
-const FOOD_SAFETY_REGEX = /\b(safe to eat|expiry|expire|expired|spoil|spoiled|spoiling|storage|store|how long|shelf life|hygiene|fssai|temperature|bacteria|food poison|food poisoning|kitni der|kharab|safe hai|kitne ghante|khana thik|kitne din)\b/i;
+const FOOD_SAFETY_REGEX = /\b(safe to eat|safe to consume|edible|can i eat|kha sakte|khana safe|safe hai|expiry|expire|expired|best before|shelf[- ]?life|spoil|spoiled|spoiling|spoilage|stale|basi|bassi|kharab|rot|rotten|rotting|decay|decaying|decompose|decomposition|decomposing|sadna|sad gaya|storage|store|stored|preserve|preservation|fridge|refrigerator|freezer|freeze|frozen|temperature|how long|how much time|how many hours|how many days|kitni der|kitne din|kitne ghante|kitna time|kitna samay|hygiene|fssai|bacteria|fungus|fungal|mold|mould|food poison|food poisoning|food safety|food waste|compost|composting)\b/i;
 
 async function getGrounding(message) {
   if (typeof message !== 'string' || !message.trim()) {
@@ -31,16 +31,23 @@ async function getGrounding(message) {
     cleaned = cleaned.slice(0, 150).trim();
   }
 
-  const searchQuery = `${cleaned} food safety`.trim();
+  // Ensure query has food context if missing
+  let searchQuery = cleaned;
+  if (!/\bfood\b/i.test(searchQuery)) {
+    searchQuery = `${searchQuery} food`;
+  }
+  if (!/\b(safety|safe|shelf|storage|spoil|decompose|decomposition|decay|rot|expiry|expire|waste|compost)\b/i.test(searchQuery)) {
+    searchQuery = `${searchQuery} safety`;
+  }
 
   try {
     const searchRes = await tinyfish.search({
       query: searchQuery,
-      include_domains: 'fssai.gov.in,who.int,fao.org',
+      exclude_domains: 'scribd.com,nairaland.com,pdfcoffee.com,facebook.com,youtube.com,instagram.com,reddit.com,quora.com',
       location: 'IN',
       language: 'en'
     }, {
-      timeoutMs: 2500,
+      timeoutMs: 5000,
       ttlSeconds: 3600
     });
 
