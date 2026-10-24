@@ -40,7 +40,9 @@ export default function DonorForm({
     reason: '',
     is_bulk: true,
     quantity_level: 'BULK_SURPLUS',
-    estimated_servings_range: ''
+    estimated_servings_range: '',
+    is_ai_generated: false,
+    ai_generated_confidence: 0
   }); // IDLE, LOADING, VERIFIED, REJECTED
   
   // Geolocation & Autocomplete State
@@ -307,7 +309,7 @@ export default function DonorForm({
     });
   };
 
-  const downscaleImageForVerification = (dataUrl, maxDim = 800, quality = 0.82) => {
+  const downscaleImageForVerification = (dataUrl, maxDim = 1024, quality = 0.88) => {
     return new Promise((resolve) => {
       if (!dataUrl || typeof dataUrl !== 'string') return resolve(dataUrl);
       const img = new Image();
@@ -378,7 +380,7 @@ export default function DonorForm({
     reader.onload = async (uploadEvt) => {
       const originalBase64 = uploadEvt.target.result;
       stopCamera();
-      const readyBase64 = await downscaleImageForVerification(originalBase64, 800, 0.82);
+      const readyBase64 = await downscaleImageForVerification(originalBase64, 1024, 0.88);
       setImagePreview(readyBase64);
       setIsLiveCapture(false);
       triggerAIVerification(readyBase64);
@@ -395,7 +397,9 @@ export default function DonorForm({
       reason: '', 
       is_bulk: true, 
       quantity_level: 'BULK_SURPLUS', 
-      estimated_servings_range: '' 
+      estimated_servings_range: '',
+      is_ai_generated: false,
+      ai_generated_confidence: 0
     });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -409,14 +413,16 @@ export default function DonorForm({
       reason: '', 
       is_bulk: true, 
       quantity_level: 'BULK_SURPLUS', 
-      estimated_servings_range: '' 
+      estimated_servings_range: '',
+      is_ai_generated: false,
+      ai_generated_confidence: 0
     });
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     try {
-      const payloadBase64 = await downscaleImageForVerification(base64, 800, 0.82);
+      const payloadBase64 = await downscaleImageForVerification(base64, 1024, 0.88);
 
       const res = await fetch('/api/ai/verify-food', {
         method: 'POST',
@@ -427,7 +433,10 @@ export default function DonorForm({
       clearTimeout(timeoutId);
 
       const data = await res.json();
-      if (res.ok && data.is_food === true && (data.confidence ?? 0) >= 50) {
+      const isAiGen = Boolean(data.is_ai_generated);
+      const isFoodVerified = res.ok && data.is_food === true && (data.confidence ?? 0) >= 50 && !isAiGen;
+
+      if (isFoodVerified) {
         setAiState({ 
           status: 'VERIFIED', 
           confidence: data.confidence, 
@@ -435,18 +444,31 @@ export default function DonorForm({
           is_bulk: data.is_bulk !== undefined ? data.is_bulk : true,
           quantity_level: data.quantity_level || (data.is_bulk ? 'BULK_SURPLUS' : 'LOW_QUANTITY'),
           estimated_servings_range: data.estimated_servings_range || '',
+          is_ai_generated: false,
+          ai_generated_confidence: data.ai_generated_confidence || 0,
           verification_token: data.verification_token || '',
           retryable: false
         });
       } else {
         const isRetryable = res.status === 503 || Boolean(data.retryable);
+        let rejectReason = data.reason;
+        if (isAiGen) {
+          rejectReason = data.reason || 'AI-generated food image detected. Only genuine photographs of real surplus food are accepted.';
+        } else if (isRetryable) {
+          rejectReason = data.reason || 'AI verification service temporarily offline. Please click Retry Check.';
+        } else {
+          rejectReason = data.reason || 'Image does not clearly show food.';
+        }
+
         setAiState({ 
           status: 'REJECTED', 
           confidence: data.confidence || 0, 
-          reason: data.reason || (isRetryable ? 'AI service temporarily busy. Please click Retry Check.' : 'Image does not clearly show food.'),
+          reason: rejectReason,
           is_bulk: false,
           quantity_level: 'LOW_QUANTITY',
           estimated_servings_range: '',
+          is_ai_generated: isAiGen,
+          ai_generated_confidence: data.ai_generated_confidence || (isAiGen ? 90 : 0),
           verification_token: '',
           retryable: isRetryable
         });
@@ -463,6 +485,8 @@ export default function DonorForm({
         is_bulk: false,
         quantity_level: 'LOW_QUANTITY',
         estimated_servings_range: '',
+        is_ai_generated: false,
+        ai_generated_confidence: 0,
         verification_token: '',
         retryable: true
       });
@@ -486,6 +510,12 @@ export default function DonorForm({
 
     if (aiState.status === 'LOADING') {
       alert('AI food verification in progress. Please wait.');
+      return;
+    }
+
+    if (aiState.is_ai_generated) {
+      alert('AI-Generated Food Image Detected!\n\nFoodLoop requires authentic camera photos of actual surplus food to ensure recipient safety and prevent fraudulent listings. Please retake photo proof with a real camera photo.');
+      setCurrentStep(1);
       return;
     }
 
@@ -556,8 +586,10 @@ export default function DonorForm({
       quantity_level: aiState.quantity_level || (aiState.is_bulk ? 'BULK_SURPLUS' : 'LOW_QUANTITY'),
       estimated_servings_range: aiState.estimated_servings_range || '',
       ai_portion_reason: aiState.reason || '',
+      is_ai_generated: false,
+      ai_generated_confidence: aiState.ai_generated_confidence || 0,
       is_live_capture: isLiveCapture,
-      ai_detected_class: aiState.reason || 'AI Verified Food',
+      ai_detected_class: aiState.reason || 'AI Verified Real Food',
       ai_verification_token: aiState.verification_token || '',
       trust_score: 100,
       created_at: new Date().toISOString(),
@@ -774,12 +806,31 @@ export default function DonorForm({
                       Volume classification: <strong>{aiState.is_bulk ? 'Bulk surplus' : 'Standard portion'}</strong>
                       {aiState.estimated_servings_range && ` (${aiState.estimated_servings_range})`}
                     </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--status-available-text)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <ShieldCheck size={14} strokeWidth={1.5} />
+                      <span>Authenticity: Real photograph verified (No AI generation detected)</span>
+                    </div>
                   </div>
                 )}
                 {aiState.status === 'REJECTED' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--status-critical-text)', fontSize: '0.8125rem' }}>
-                    <AlertCircle size={16} strokeWidth={1.5} />
-                    <span>{aiState.reason || 'Image could not be verified as surplus food.'}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--status-critical-text)', fontSize: '0.8125rem' }}>
+                      <AlertCircle size={16} strokeWidth={1.5} />
+                      <span>{aiState.reason || 'Image could not be verified as surplus food.'}</span>
+                    </div>
+                    {aiState.is_ai_generated && (
+                      <div style={{
+                        marginTop: '4px',
+                        padding: '8px 10px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        borderRadius: 'var(--radius-xs)',
+                        fontSize: '0.75rem',
+                        color: 'var(--status-critical-text)'
+                      }}>
+                        <strong>⚠️ Synthetic / AI Image Detected ({aiState.ai_generated_confidence}% confidence):</strong> FoodLoop requires authentic camera photos of real physical surplus food. AI-generated images (DALL-E, Midjourney, Stable Diffusion, etc.) cannot be accepted for food donations.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -788,8 +839,14 @@ export default function DonorForm({
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={!imagePreview}
-                  onClick={() => setCurrentStep(2)}
+                  disabled={!imagePreview || aiState.status === 'LOADING' || aiState.is_ai_generated}
+                  onClick={() => {
+                    if (aiState.is_ai_generated) {
+                      alert('AI-generated food photo detected. Please retake photo proof with an authentic photograph of real food.');
+                      return;
+                    }
+                    setCurrentStep(2);
+                  }}
                 >
                   <span>Continue to food details</span>
                   <ArrowRight size={15} strokeWidth={1.5} />
@@ -1047,7 +1104,13 @@ export default function DonorForm({
                   </div>
                   <div className="detail-meta-item">
                     <span>AI Food Verification</span>
-                    <span>{aiState.status === 'VERIFIED' ? `Passed (${aiState.confidence}%)` : 'Bypassed / Pending'}</span>
+                    <span>
+                      {aiState.status === 'VERIFIED' 
+                        ? `Passed (${aiState.confidence}%) · Authentic Photo` 
+                        : aiState.is_ai_generated
+                        ? 'Rejected (AI-Generated Image)'
+                        : 'Bypassed / Pending'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1111,7 +1174,13 @@ export default function DonorForm({
               </div>
               <div className="detail-meta-item">
                 <span>AI Photo Check</span>
-                <span>{aiState.status === 'VERIFIED' ? 'Verified' : 'Pending'}</span>
+                <span>
+                  {aiState.status === 'VERIFIED' 
+                    ? 'Verified (Authentic)' 
+                    : aiState.is_ai_generated 
+                    ? 'AI Generated (Rejected)' 
+                    : 'Pending'}
+                </span>
               </div>
             </div>
 

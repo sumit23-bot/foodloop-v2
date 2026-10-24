@@ -6,7 +6,7 @@ process.env.DEMO_MODE = 'true';
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test_secret_for_group_e_testing_1234567890';
 
-const { app, probeGeminiStartup, addKnownImageHash, KNOWN_WEB_IMAGE_HASHES } = require('../server');
+const { app, probeGeminiStartup, addKnownImageHash, KNOWN_WEB_IMAGE_HASHES, processVisionInspection } = require('../server');
 const mongoose = require('mongoose');
 
 test.after(async () => {
@@ -155,5 +155,66 @@ test('Group E: AI Endpoints, Model Cascade, Header Security & Anti-Duplicate', a
     // Invalid length hash ignored
     addKnownImageHash('tooshort');
     assert.equal(KNOWN_WEB_IMAGE_HASHES.has('tooshort'), false);
+  });
+
+  await t.test('E6: AI Vision inspection detects and rejects AI-generated food images', () => {
+    // 1. Authentic real-world food photo: should pass verification
+    const realFoodVerdict = processVisionInspection({
+      is_food: true,
+      confidence: 94,
+      is_bulk: true,
+      quantity_level: 'BULK_SURPLUS',
+      estimated_servings_range: '30-40 servings',
+      is_ai_generated: false,
+      ai_generated_confidence: 5,
+      reason: 'Fresh bulk catering food trays verified.'
+    });
+    assert.strictEqual(realFoodVerdict.is_food, true, 'Genuine food photo must pass verification');
+    assert.strictEqual(realFoodVerdict.is_ai_generated, false);
+    assert.strictEqual(realFoodVerdict.confidence, 94);
+    assert.strictEqual(realFoodVerdict.is_bulk, true);
+
+    // 2. AI-generated / synthetic food photo: MUST be detected and rejected
+    const aiGeneratedFoodVerdict = processVisionInspection({
+      is_food: true,
+      confidence: 95,
+      is_bulk: true,
+      quantity_level: 'BULK_SURPLUS',
+      estimated_servings_range: '50 servings',
+      is_ai_generated: true,
+      ai_generated_confidence: 96,
+      reason: 'AI-generated photorealistic banquet food with telltale synthetic rendering artifacts.'
+    });
+    assert.strictEqual(aiGeneratedFoodVerdict.is_food, false, 'AI-generated food image must NOT pass verification');
+    assert.strictEqual(aiGeneratedFoodVerdict.is_ai_generated, true, 'is_ai_generated flag must be true');
+    assert.strictEqual(aiGeneratedFoodVerdict.ai_generated_confidence, 96);
+    assert.match(aiGeneratedFoodVerdict.reason, /AI-generated/i, 'Reason must explain AI generation');
+
+    // 3. String representation 'true' for is_ai_generated is also defensively handled
+    const aiGenStringVerdict = processVisionInspection({
+      is_food: true,
+      confidence: 90,
+      is_ai_generated: 'true',
+      reason: ''
+    });
+    assert.strictEqual(aiGenStringVerdict.is_food, false);
+    assert.strictEqual(aiGenStringVerdict.is_ai_generated, true);
+
+    // 4. Non-food image: remains rejected without flagging as AI-generated if authentic photo of object
+    const nonFoodVerdict = processVisionInspection({
+      is_food: false,
+      confidence: 10,
+      is_bulk: false,
+      is_ai_generated: false,
+      ai_generated_confidence: 0,
+      reason: 'Photo shows a vehicle, not food.'
+    });
+    assert.strictEqual(nonFoodVerdict.is_food, false);
+    assert.strictEqual(nonFoodVerdict.is_ai_generated, false);
+
+    // 5. Malformed/empty input safety
+    const malformedVerdict = processVisionInspection(null);
+    assert.strictEqual(malformedVerdict.is_food, false);
+    assert.strictEqual(malformedVerdict.is_ai_generated, false);
   });
 });

@@ -369,7 +369,7 @@ export default function RescueFeeds({
                       Inspection Summary
                     </div>
                     <div style={{ color: 'var(--text-primary)', marginBottom: '2px' }}>
-                      AI photo check: {activeSelected.is_food_verified ? 'Verified surplus food' : 'Pending verification'}
+                      AI photo check: {activeSelected.is_food_verified ? 'Verified surplus food (Authentic photo)' : 'Pending verification'}
                     </div>
                     <div style={{ color: 'var(--text-secondary)' }}>
                       Geofence coordinate stamped at {itemLat.toFixed(4)}N, {itemLon.toFixed(4)}E
